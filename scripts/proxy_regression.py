@@ -273,7 +273,9 @@ backend held_server
                     raise AssertionError("Untrusted peer injected PROXY metadata")
             except (ssl.SSLError, ConnectionResetError, BrokenPipeError):
                 pass
-        # A prefixed TLS attempt to TT must fail; valid no-prefix H2 is checked separately.
+        # Fixture TT has a one-second server handshake bound. Wait longer than
+        # that bound and require a server error/EOF, never a client timeout.
+        # Valid no-prefix H2 is checked separately.
         with socket.create_connection(("127.0.0.1", 19443), timeout=3) as raw:
             try:
                 raw.sendall(proxy_header())

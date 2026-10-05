@@ -57,6 +57,7 @@ def main():
                 assert "libstdc++6" in control, "Undeclared C++ runtime dependency"
             linkage = subprocess.check_output(["ldd", str(path)], text=True)
             assert "not found" not in linkage
+            print(f"{name}: NEEDED {needed}; maximum GLIBC {glibc[-1]}")
             records.append({"binary": name, "needed": needed, "glibc_versions": glibc,
                             "runtime_linkage": linkage.splitlines()})
     versions = {}

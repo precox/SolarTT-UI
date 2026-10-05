@@ -54,7 +54,7 @@ def main():
 
     agent = (ROOT / "examples/agent.toml").read_text().replace("allowed_uids = [1001]", f"allowed_uids = [{panel_uid}]")
     put("agent.toml", agent)
-    endpoint = (ROOT / "examples/endpoint.toml").read_text().replace(":9443", ":19443").replace(":9080", ":19080").replace(":1987", ":11987")
+    endpoint = "tls_handshake_timeout_secs = 1\n" + (ROOT / "examples/endpoint.toml").read_text().replace(":9443", ":19443").replace(":9080", ":19080").replace(":1987", ":11987")
     put("endpoint.toml", endpoint)
     put("hosts.toml", (ROOT / "examples/hosts.toml").read_text())
     panel = (ROOT / "examples/panel.toml").read_text().replace("127.0.0.1:8081", "127.0.0.1:18081").replace("https://admin.example.org", "http://127.0.0.1:18081")
