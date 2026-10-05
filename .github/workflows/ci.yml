@@ -24,6 +24,7 @@ jobs:
           components: rustfmt, clippy
       - run: python3 scripts/prepare_upstream.py
       - run: cargo fmt --all --check
+      - run: node --check crates/panel/assets/app.js && node --check scripts/browser_smoke.mjs
       - run: cargo clippy --locked -p solartt-control-api -p solartt-policy -p solartt-profile-export -p solartt-panel -p solartt-admin --all-targets -- -D warnings
       - run: cargo test --locked -p solartt-control-api -p solartt-policy -p solartt-profile-export -p solartt-panel -p solartt-admin
   native:

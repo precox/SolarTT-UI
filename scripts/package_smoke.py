@@ -263,6 +263,9 @@ backend existing
                 raise RuntimeError("Revoked TLS connection remained open")
         probe.close()
         assert command({"op": "users", "after": None})["users"][0]["active_sessions"] == 0
+        run("node", str(ROOT / "scripts/browser_smoke.mjs"), input=json.dumps({
+            "origin": "http://127.0.0.1:18081", "password": password}).encode())
+        print("Browser interaction and secret-clearing checks passed")
         run("sudo", "systemctl", "stop", *services)
         run("sudo", "-u", "solartt-agent", "solartt-admin", "backup", str(data / "policy.sqlite"), str(data / "snapshot.sqlite"))
         run("sudo", "-u", "solartt-agent", "solartt-admin", "restore", str(data / "snapshot.sqlite"), str(data / "encryption.key"), str(data / "restored.sqlite"))
