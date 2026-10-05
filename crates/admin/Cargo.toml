@@ -1,0 +1,9 @@
+[package]
+name = "solartt-admin"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+[dependencies]
+solartt-policy = { path = "../policy" }
+rand.workspace = true
+libc = "0.2"

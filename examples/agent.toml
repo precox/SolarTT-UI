@@ -1,0 +1,16 @@
+database = "/var/lib/solartt/policy.sqlite"
+encryption_key = "/var/lib/solartt/encryption.key"
+control_socket = "/run/solartt/control.sock"
+endpoint_settings = "/etc/solartt/endpoint.toml"
+tls_hosts = "/etc/solartt/hosts.toml"
+# Replace with the actual UID of the panel service account.
+allowed_uids = [1001]
+hostname = "media.example.org"
+address = "192.0.2.1:443"
+dns_upstreams = ["1.1.1.1"]
+
+# Immutable for this database; calendar resets at local month boundaries.
+period_timezone = "UTC"
+
+# Include the node public IP and any NAT/public addresses not present on interfaces.
+denied_addresses = ["192.0.2.1"]

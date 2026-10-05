@@ -1,0 +1,5 @@
+listen = "127.0.0.1:8081"
+public_origin = "https://admin.example.org"
+control_socket = "/run/solartt/control.sock"
+admin_username = "admin"
+password_hash_file = "/var/lib/solartt-panel/admin.hash"

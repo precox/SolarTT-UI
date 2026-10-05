@@ -1,0 +1,18 @@
+listen_address = "127.0.0.1:9443"
+ipv6_available = false
+allow_private_network_connections = false
+auth_failure_status_code = 404
+ping_enable = false
+speedtest_enable = false
+# No credentials_file: managed authentication remains mandatory even with zero users.
+[listen_protocols.http1]
+[listen_protocols.http2]
+max_concurrent_streams = 128
+[forward_protocol]
+direct = {}
+[reverse_proxy]
+server_address = "127.0.0.1:9080"
+path_mask = "/"
+[metrics]
+address = "127.0.0.1:1987"
+per_client_metrics = true

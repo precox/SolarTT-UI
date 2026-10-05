@@ -1,0 +1,13 @@
+/target/
+/.upstream/
+/.dev/
+/dist/
+*.sqlite*
+*.db*
+*.key
+*.pem
+.env
+.env.*
+!examples/*.example
+
+__pycache__/

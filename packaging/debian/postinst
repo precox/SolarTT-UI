@@ -1,0 +1,20 @@
+#!/bin/sh
+set -eu
+if [ "$1" = configure ]; then
+    if ! getent group solartt-control >/dev/null; then addgroup --system solartt-control; fi
+    for account in solartt-agent solartt-panel; do
+        if ! getent passwd "$account" >/dev/null; then
+            adduser --system --group --no-create-home --home /nonexistent "$account"
+        fi
+        if [ "$(id -u "$account")" -eq 0 ]; then
+            echo 'Refusing a SolarTT service account with UID 0' >&2
+            exit 1
+        fi
+    done
+    install -d -o root -g solartt-control -m 0750 /etc/solartt
+    install -d -o root -g solartt-agent -m 0750 /etc/solartt/tls
+    install -d -o solartt-agent -g solartt-control -m 0700 /var/lib/solartt
+    install -d -o solartt-panel -g solartt-panel -m 0700 /var/lib/solartt-panel
+    if [ -d /run/systemd/system ]; then systemctl daemon-reload; fi
+fi
+# Deliberately no service start: operator must supply reviewed configuration and TLS.

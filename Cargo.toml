@@ -1,0 +1,35 @@
+[workspace]
+resolver = "2"
+members = ["crates/control-api", "crates/policy", "crates/profile-export", "crates/agent", "crates/panel", "crates/admin"]
+default-members = ["crates/control-api", "crates/policy", "crates/profile-export", "crates/panel", "crates/admin"]
+exclude = [".upstream"]
+
+[workspace.package]
+version = "0.1.0-alpha.1"
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/precox/SolarTT-UI"
+rust-version = "1.95"
+
+[workspace.dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.42", features = ["full"] }
+async-trait = "0.1"
+rusqlite = { version = "0.32", features = ["bundled", "backup"] }
+thiserror = "2"
+rand = "0.8"
+base64 = "0.21"
+hex = "0.4"
+chacha20poly1305 = "0.10"
+zeroize = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+
+[profile.dev]
+debug = 0
+incremental = false
+
+[profile.release]
+strip = true
+lto = "thin"
+codegen-units = 1

@@ -1,0 +1,645 @@
+diff --git a/lib/src/lib.rs b/lib/src/lib.rs
+--- a/lib/src/lib.rs
++++ b/lib/src/lib.rs
+@@ -9,6 +9,7 @@
+ pub mod client_random_prefix;
+ pub mod core;
+ pub mod log_utils;
++pub mod managed;
+ pub mod net_utils;
+ pub mod rules;
+ pub mod settings;
+diff --git a/lib/src/core.rs b/lib/src/core.rs
+--- a/lib/src/core.rs
++++ b/lib/src/core.rs
+@@ -72,6 +72,8 @@
+ pub(crate) struct Context {
+     pub settings: Arc<Settings>,
+     pub authenticator: Option<Arc<dyn authentication::Authenticator>>,
++    pub managed_policy: Option<Arc<dyn crate::managed::Policy>>,
++    managed_slots: Option<Arc<tokio::sync::Semaphore>>,
+     tls_demux: Arc<RwLock<TlsDemux>>,
+     pub icmp_forwarder: Option<Arc<IcmpForwarder>>,
+     pub shutdown: Arc<Mutex<Shutdown>>,
+@@ -105,6 +107,41 @@
+         tls_hosts_settings: settings::TlsHostsSettings,
+         shutdown: Arc<Mutex<Shutdown>>,
+     ) -> Result<Self, Error> {
++        Self::new_inner(settings, authenticator, tls_hosts_settings, shutdown, None)
++    }
++
++    /// Embed a policy-aware endpoint. QUIC and ICMP are unsupported in this initial API.
++    pub fn new_managed(
++        settings: Settings,
++        authenticator: Arc<dyn authentication::Authenticator>,
++        tls_hosts_settings: settings::TlsHostsSettings,
++        shutdown: Arc<Mutex<Shutdown>>,
++        policy: Arc<dyn crate::managed::Policy>,
++    ) -> Result<Self, Error> {
++        if settings.listen_protocols.quic.is_some() || settings.icmp.is_some() {
++            return Err(Error::SettingsValidation(
++                settings::ValidationError::ListenProtocols(
++                    "Managed policy currently supports TCP HTTP transports and UDP payload only"
++                        .into(),
++                ),
++            ));
++        }
++        Self::new_inner(
++            settings,
++            Some(authenticator),
++            tls_hosts_settings,
++            shutdown,
++            Some(policy),
++        )
++    }
++
++    fn new_inner(
++        settings: Settings,
++        authenticator: Option<Arc<dyn authentication::Authenticator>>,
++        tls_hosts_settings: settings::TlsHostsSettings,
++        shutdown: Arc<Mutex<Shutdown>>,
++        managed_policy: Option<Arc<dyn crate::managed::Policy>>,
++    ) -> Result<Self, Error> {
+         if !settings.is_built() {
+             settings.validate().map_err(Error::SettingsValidation)?;
+         }
+@@ -114,16 +151,20 @@
+                 .map_err(Error::SettingsValidation)?;
+         }
+ 
++        let managed_slots = managed_policy
++            .as_ref()
++            .map(|_| Arc::new(tokio::sync::Semaphore::new(128)));
+         let settings = Arc::new(settings);
+ 
+         let (fatal_error, _fatal_error_rx) = watch::channel(None);
+ 
+-        let connection_limiter = if settings.default_max_http2_conns_per_client.is_some()
+-            || settings.default_max_http3_conns_per_client.is_some()
+-            || settings
+-                .clients
+-                .iter()
+-                .any(|c| c.max_http2_conns.is_some() || c.max_http3_conns.is_some())
++        let connection_limiter = if managed_policy.is_none()
++            && (settings.default_max_http2_conns_per_client.is_some()
++                || settings.default_max_http3_conns_per_client.is_some()
++                || settings
++                    .clients
++                    .iter()
++                    .any(|c| c.max_http2_conns.is_some() || c.max_http3_conns.is_some()))
+         {
+             Some(Arc::new(ConnectionLimiter::new(
+                 &settings.clients,
+@@ -144,6 +185,8 @@
+             context: Arc::new(Context {
+                 settings: settings.clone(),
+                 authenticator,
++                managed_policy,
++                managed_slots,
+                 tls_demux: Arc::new(RwLock::new(
+                     TlsDemux::new(&settings, &tls_hosts_settings)
+                         .map_err(|e| Error::TlsDemultiplexer(e.to_string()))?,
+@@ -292,10 +335,18 @@
+                 }
+             };
+ 
++            let slot = match &self.context.managed_slots {
++                Some(slots) => match slots.clone().try_acquire_owned() {
++                    Ok(slot) => Some(slot),
++                    Err(_) => continue,
++                },
++                None => None,
++            };
+             tokio::spawn({
+                 let context = self.context.clone();
+                 let tls_listener = tls_listener.clone();
+                 async move {
++                    let _managed_slot = slot;
+                     log_id!(trace, client_id, "Starting TLS handshake");
+                     let handshake_timeout = context.settings.tls_handshake_timeout;
+                     match tokio::time::timeout(handshake_timeout, tls_listener.listen(stream))
+@@ -804,6 +855,8 @@
+         Self {
+             settings: settings.clone(),
+             authenticator: None,
++            managed_policy: None,
++            managed_slots: None,
+             tls_demux: Arc::new(RwLock::new(
+                 TlsDemux::new(&settings, &settings::TlsHostsSettings::default()).unwrap(),
+             )),
+diff --git a/lib/src/managed.rs b/lib/src/managed.rs
+new file mode 100644
+--- /dev/null
++++ b/lib/src/managed.rs
+@@ -0,0 +1,80 @@
++//! Optional host policy; database and monthly quota semantics belong to the embedding agent.
++use crate::authentication::Source;
++use async_trait::async_trait;
++use std::{io, sync::Arc};
++use tokio::sync::watch;
++
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub struct Identity {
++    pub user_id: String,
++    pub credential_id: String,
++    pub generation: u64,
++}
++
++pub trait Permit: Send {
++    fn amount(&self) -> usize;
++    fn begin(&mut self);
++    fn finish(self: Box<Self>, accepted: usize) -> io::Result<()>;
++}
++
++#[async_trait]
++pub trait Session: Send + Sync {
++    fn identity(&self) -> &Identity;
++    fn is_cancelled(&self) -> bool;
++    async fn cancelled(&self);
++    async fn reserve(&self, bytes: usize, datagram: bool) -> io::Result<Box<dyn Permit>>;
++}
++
++pub trait Policy: Send + Sync {
++    fn allows_destination(&self, _ip: std::net::IpAddr) -> bool {
++        true
++    }
++    fn resolve(&self, source: &Source<'_>) -> io::Result<Identity>;
++    fn open(&self, identity: Identity) -> io::Result<Arc<dyn Session>>;
++}
++
++pub(crate) struct Scope {
++    policy: Option<Arc<dyn Policy>>,
++    binding: watch::Sender<Option<Arc<dyn Session>>>,
++}
++
++impl Scope {
++    pub(crate) fn new(policy: Option<Arc<dyn Policy>>) -> Self {
++        let (binding, _) = watch::channel(None);
++        Self { policy, binding }
++    }
++    pub(crate) fn bind(&self, source: &Source<'_>) -> io::Result<()> {
++        let Some(policy) = &self.policy else {
++            return Ok(());
++        };
++        let identity = policy.resolve(source)?;
++        let current = self.binding.borrow().clone();
++        if let Some(session) = current {
++            if session.identity() != &identity || session.is_cancelled() {
++                return Err(io::Error::new(
++                    io::ErrorKind::PermissionDenied,
++                    "Managed identity rejected",
++                ));
++            }
++        } else {
++            self.binding.send_replace(Some(policy.open(identity)?));
++        }
++        Ok(())
++    }
++    pub(crate) fn session(&self) -> Option<Arc<dyn Session>> {
++        self.binding.borrow().clone()
++    }
++    pub(crate) async fn cancelled(&self) {
++        let mut rx = self.binding.subscribe();
++        loop {
++            let session = rx.borrow_and_update().clone();
++            if let Some(session) = session {
++                session.cancelled().await;
++                return;
++            }
++            if rx.changed().await.is_err() {
++                std::future::pending::<()>().await;
++            }
++        }
++    }
++}
+diff --git a/lib/src/tunnel.rs b/lib/src/tunnel.rs
+--- a/lib/src/tunnel.rs
++++ b/lib/src/tunnel.rs
+@@ -36,6 +36,7 @@
+ 
+ pub(crate) struct Tunnel {
+     context: Arc<core::Context>,
++    request_tasks: tokio::task::JoinSet<()>,
+     downstream: Box<dyn Downstream>,
+     forwarder: Arc<Mutex<Box<dyn Forwarder>>>,
+     authentication_policy: AuthenticationPolicy<'static>,
+@@ -44,6 +45,7 @@
+     /// or lazily on the first authenticated request for proxy-basic connections.
+     connection_guard: Option<ConnectionGuard>,
+     id: log_utils::IdChain<u64>,
++    managed: Arc<crate::managed::Scope>,
+ }
+ 
+ #[derive(Debug)]
+@@ -81,6 +83,8 @@
+         id: log_utils::IdChain<u64>,
+     ) -> Self {
+         Self {
++            managed: Arc::new(crate::managed::Scope::new(context.managed_policy.clone())),
++            request_tasks: tokio::task::JoinSet::new(),
+             context,
+             downstream,
+             forwarder: Arc::new(Mutex::new(forwarder)),
+@@ -95,7 +99,12 @@
+             let shutdown = self.context.shutdown.lock().unwrap();
+             (shutdown.notification_handler(), shutdown.completion_guard())
+         };
+-        tokio::select! {
++        let managed = self.managed.clone();
++        let result = tokio::select! {
++            biased;
++            _ = managed.cancelled(), if self.context.managed_policy.is_some() => {
++                Err(io::Error::new(ErrorKind::PermissionDenied, "Managed access revoked"))
++            }
+             x = shutdown_notification.wait() => {
+                 match x {
+                     Ok(_) => self.downstream.graceful_shutdown().await,
+@@ -103,7 +112,12 @@
+                 }
+             }
+             x = self.listen_inner() => x,
+-        }
++        };
++        if self.context.managed_policy.is_some() {
++            self.request_tasks.abort_all();
++            while self.request_tasks.join_next().await.is_some() {}
++        }
++        result
+     }
+ 
+     fn resolve_username(
+@@ -155,6 +169,36 @@
+                 }
+             };
+ 
++            if self.context.managed_policy.is_some() {
++                let source = match request.auth_info() {
++                    Ok(Some(source)) => Some(source.into_owned()),
++                    Ok(None) => match &self.authentication_policy {
++                        AuthenticationPolicy::Authenticated(source) => Some(source.clone()),
++                        AuthenticationPolicy::Default => None,
++                    },
++                    Err(_) => None,
++                };
++                let accepted = source.as_ref().is_some_and(|source| {
++                    self.context
++                        .authenticator
++                        .as_ref()
++                        .is_some_and(|auth| auth.authenticate(source, &self.id) == Status::Pass)
++                        && self.managed.bind(source).is_ok()
++                });
++                if !accepted {
++                    request.fail_request(ConnectionError::Authentication(
++                        "Authentication failed".into(),
++                    ));
++                    continue;
++                }
++                // Reap completed tasks to keep the task registry bounded.
++                while self.request_tasks.try_join_next().is_some() {}
++                if self.request_tasks.len() >= 256 {
++                    request.fail_request(ConnectionError::Other("Request limit exceeded".into()));
++                    continue;
++                }
++            }
++            let session = self.managed.session();
+             let context = self.context.clone();
+             let forwarder = self.forwarder.clone();
+             let tls_domain = self.downstream.tls_domain().to_string();
+@@ -224,7 +268,7 @@
+                 }
+             }
+ 
+-            tokio::spawn(async move {
++            let task = async move {
+                 fn report_fatal_if_too_many_open_files(
+                     context: &Arc<core::Context>,
+                     e: &ConnectionError,
+@@ -316,6 +360,7 @@
+                             forwarder_auth,
+                             tls_domain,
+                             update_metrics,
++                            session.clone(),
+                         )
+                         .await
+                         {
+@@ -335,6 +380,7 @@
+                             forwarder_auth,
+                             tls_domain,
+                             update_metrics,
++                            session.clone(),
+                         )
+                         .await
+                         {
+@@ -349,7 +395,12 @@
+                         log_id!(debug, request_id, "Failed to complete request: {}", e);
+                     }
+                 }
+-            });
++            };
++            if self.context.managed_policy.is_some() {
++                self.request_tasks.spawn(task);
++            } else {
++                tokio::spawn(task);
++            }
+         }
+     }
+ 
+@@ -360,6 +411,7 @@
+         forwarder_auth: Option<authentication::Source<'static>>,
+         tls_domain: String,
+         update_metrics: F,
++        session: Option<Arc<dyn crate::managed::Session>>,
+     ) -> Result<
+         (),
+         (
+@@ -445,6 +497,7 @@
+             update_metrics,
+         );
+ 
++        pipe.set_managed_session(session);
+         log_id!(trace, request_id, "TCP connect: pipe exchange started");
+         match pipe
+             .exchange(context.settings.tcp_connections_timeout)
+@@ -468,6 +521,7 @@
+         forwarder_auth: Option<authentication::Source<'static>>,
+         tls_domain: String,
+         update_metrics: F,
++        session: Option<Arc<dyn crate::managed::Session>>,
+     ) -> Result<
+         (),
+         (
+@@ -527,12 +581,14 @@
+                     }
+                 };
+ 
+-                Box::new(udp_pipe::DuplexPipe::new(
++                let mut udp = udp_pipe::DuplexPipe::new(
+                     (dstr_source, dstr_sink),
+                     (fwd_shared, fwd_source, fwd_sink),
+                     update_metrics,
+                     context.settings.udp_connections_timeout,
+-                ))
++                );
++                udp.set_managed_session(session);
++                Box::new(udp)
+             }
+             Ok(downstream::DatagramPipeHalves::Icmp(dstr_source, dstr_sink)) => {
+                 let (fwd_source, fwd_sink) = match forwarder
+diff --git a/lib/src/pipe.rs b/lib/src/pipe.rs
+--- a/lib/src/pipe.rs
++++ b/lib/src/pipe.rs
+@@ -92,6 +92,7 @@
+     pending_chunk: Option<Data>,
+     direction: SimplexDirection,
+     last_activity: Instant,
++    managed_session: Option<std::sync::Arc<dyn crate::managed::Session>>,
+ }
+ 
+ pub(crate) struct Error<T> {
+@@ -136,6 +137,7 @@
+             pending_chunk: Default::default(),
+             direction,
+             last_activity: Instant::now(),
++            managed_session: None,
+         }
+     }
+ 
+@@ -179,12 +181,45 @@
+ 
+             match data {
+                 Data::Chunk(bytes) => {
+-                    let data_len = bytes.len();
+-                    let unsent_data = self
++                    let mut bytes = bytes;
++                    let mut permit = if let Some(session) = &self.managed_session {
++                        Some(
++                            session
++                                .reserve(bytes.len(), false)
++                                .await
++                                .map_err(|e| io_to_pipe_error(id, e))?,
++                        )
++                    } else {
++                        None
++                    };
++                    let allowed = permit.as_ref().map(|p| p.amount()).unwrap_or(bytes.len());
++                    if allowed == 0 || allowed > bytes.len() {
++                        return Err(io_to_pipe_error(
++                            id,
++                            io::Error::other("Invalid managed byte permit"),
++                        ));
++                    }
++                    let remainder = bytes.split_off(allowed);
++                    if let Some(permit) = &mut permit {
++                        permit.begin();
++                    }
++                    let unsent = self
+                         .sink
+                         .write(bytes)
+                         .map_err(|e| io_to_pipe_error(id, e))?;
+-                    let sent = data_len - unsent_data.len();
++                    let sent = allowed - unsent.len();
++                    if let Some(permit) = permit {
++                        permit.finish(sent).map_err(|e| io_to_pipe_error(id, e))?;
++                    }
++                    let unsent_data = if remainder.is_empty() {
++                        unsent
++                    } else {
++                        let mut combined =
++                            bytes::BytesMut::with_capacity(unsent.len() + remainder.len());
++                        combined.extend_from_slice(&unsent);
++                        combined.extend_from_slice(&remainder);
++                        combined.freeze()
++                    };
+                     (self.update_metrics)(self.direction, sent);
+                     self.source
+                         .consume(sent)
+@@ -231,6 +266,14 @@
+         }
+     }
+ 
++    pub fn set_managed_session(
++        &mut self,
++        session: Option<std::sync::Arc<dyn crate::managed::Session>>,
++    ) {
++        self.left_pipe.managed_session = session.clone();
++        self.right_pipe.managed_session = session;
++    }
++
+     pub async fn exchange(&mut self, timeout: Duration) -> io::Result<()> {
+         let id = self.left_pipe.source.id();
+         loop {
+diff --git a/lib/src/udp_pipe.rs b/lib/src/udp_pipe.rs
+--- a/lib/src/udp_pipe.rs
++++ b/lib/src/udp_pipe.rs
+@@ -35,6 +35,7 @@
+     udp_connections: Mutex<HashMap<forwarder::UdpDatagramMeta, UdpConnection>>,
+     forwarder_shared: Arc<dyn forwarder::UdpDatagramPipeShared>,
+     update_metrics: F,
++    managed_session: Option<Arc<dyn crate::managed::Session>>,
+ }
+ 
+ struct UdpConnection {
+@@ -59,6 +60,11 @@
+             let datagram = self.source.read().await?;
+             log_id!(trace, self.source.id(), "--> Datagram: {:?}", datagram);
+ 
++            let mut permit = match self.shared.reserve(datagram.payload.len()).await {
++                Ok(p) => p,
++                Err(e) if e.kind() == io::ErrorKind::WouldBlock => continue,
++                Err(e) => return Err(e),
++            };
+             if let Err(e) = self.on_udp_packet(&datagram.meta).await {
+                 log_id!(
+                     debug,
+@@ -71,11 +77,20 @@
+             }
+ 
+             let datagram_len = datagram.payload.len();
++            if let Some(permit) = &mut permit {
++                permit.begin();
++            }
+             match self.sink.write(datagram).await? {
+                 datagram_pipe::SendStatus::Sent => {
++                    if let Some(permit) = permit {
++                        permit.finish(datagram_len)?;
++                    }
+                     (self.shared.update_metrics)(self.direction, datagram_len);
+                 }
+                 datagram_pipe::SendStatus::Dropped => {
++                    if let Some(permit) = permit {
++                        permit.finish(0)?;
++                    }
+                     log_id!(trace, self.source.id(), "--> Datagram dropped")
+                 }
+             }
+@@ -145,13 +160,27 @@
+             };
+             log_id!(trace, self.source.id(), "<-- Datagram: {:?}", datagram);
+ 
++            let mut permit = match self.shared.reserve(datagram.payload.len()).await {
++                Ok(p) => p,
++                Err(e) if e.kind() == io::ErrorKind::WouldBlock => continue,
++                Err(e) => return Err(e),
++            };
+             let meta = datagram.meta;
+             let datagram_len = datagram.payload.len();
++            if let Some(permit) = &mut permit {
++                permit.begin();
++            }
+             match self.sink.write(datagram).await? {
+                 datagram_pipe::SendStatus::Sent => {
++                    if let Some(permit) = permit {
++                        permit.finish(datagram_len)?;
++                    }
+                     (self.shared.update_metrics)(self.direction, datagram_len);
+                 }
+                 datagram_pipe::SendStatus::Dropped => {
++                    if let Some(permit) = permit {
++                        permit.finish(0)?;
++                    }
+                     log_id!(trace, self.source.id(), "<-- Datagram dropped")
+                 }
+             }
+@@ -226,6 +255,7 @@
+             udp_connections: Mutex::new(Default::default()),
+             forwarder_shared: shared2,
+             update_metrics,
++            managed_session: None,
+         });
+ 
+         Self {
+@@ -255,6 +285,21 @@
+             Ok(_) => Ok(()),
+             Err(Either::Left((e, _))) | Err(Either::Right((e, _))) => Err(e),
+         }
++    }
++
++    pub fn set_managed_session(&mut self, session: Option<Arc<dyn crate::managed::Session>>)
++    where
++        F: Clone,
++    {
++        let previous = &self.left_pipe.shared;
++        let shared = Arc::new(UdpPipeShared {
++            udp_connections: Mutex::new(Default::default()),
++            forwarder_shared: previous.forwarder_shared.clone(),
++            update_metrics: previous.update_metrics.clone(),
++            managed_session: session,
++        });
++        self.left_pipe.shared = shared.clone();
++        self.right_pipe.shared = shared;
+     }
+ 
+     fn on_timer_tick(&mut self) {
+@@ -454,3 +499,15 @@
+         );
+     }
+ }
++
++impl<F: Send + Sync> UdpPipeShared<F> {
++    async fn reserve(&self, amount: usize) -> io::Result<Option<Box<dyn crate::managed::Permit>>> {
++        if amount == 0 {
++            return Ok(None);
++        }
++        match &self.managed_session {
++            Some(session) => session.reserve(amount, true).await.map(Some),
++            None => Ok(None),
++        }
++    }
++}
+diff --git a/lib/src/tcp_forwarder.rs b/lib/src/tcp_forwarder.rs
+--- a/lib/src/tcp_forwarder.rs
++++ b/lib/src/tcp_forwarder.rs
+@@ -87,6 +87,15 @@
+         let peer = match meta.destination {
+             TcpDestination::Address(peer) => {
+                 let peer_ip = peer.ip();
++                if !self.allow_private_network
++                    && self
++                        .context
++                        .managed_policy
++                        .as_ref()
++                        .is_some_and(|p| !p.allows_destination(peer_ip))
++                {
++                    return Err(tunnel::ConnectionError::DnsNonroutable);
++                }
+                 if !allow_private_network && !net_utils::is_global_ip(&peer_ip) {
+                     if peer_ip.is_loopback() {
+                         return Err(tunnel::ConnectionError::DnsLoopback);
+@@ -116,6 +125,16 @@
+                         continue;
+                     }
+ 
++                    if !self.allow_private_network
++                        && self
++                            .context
++                            .managed_policy
++                            .as_ref()
++                            .is_some_and(|p| !p.allows_destination(ip))
++                    {
++                        status = Some(SelectionStatus::NonRoutable);
++                        continue;
++                    }
+                     if net_utils::is_global_ip(&ip) || allow_private_network {
+                         status = Some(SelectionStatus::Suitable(a));
+                         break;
+diff --git a/lib/src/udp_forwarder.rs b/lib/src/udp_forwarder.rs
+--- a/lib/src/udp_forwarder.rs
++++ b/lib/src/udp_forwarder.rs
+@@ -171,6 +171,17 @@
+ impl forwarder::UdpDatagramPipeShared for MultiplexerShared {
+     async fn on_new_udp_connection(&self, meta: &downstream::UdpDatagramMeta) -> io::Result<()> {
+         let dest_ip = meta.destination.ip();
++        if self
++            .context
++            .managed_policy
++            .as_ref()
++            .is_some_and(|p| !p.allows_destination(dest_ip))
++        {
++            return Err(io::Error::new(
++                ErrorKind::PermissionDenied,
++                "UDP destination is denied by managed policy",
++            ));
++        }
+         if !self.context.settings.allow_private_network_connections
+             && !net_utils::is_global_ip(&dest_ip)
+         {

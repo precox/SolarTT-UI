@@ -1,0 +1,31 @@
+[Unit]
+Description=SolarTT TrustTunnel management panel
+After=solartt-agent.service
+[Service]
+Type=simple
+User=solartt-panel
+Group=solartt-panel
+SupplementaryGroups=solartt-control
+ExecStart=/usr/bin/solartt-panel /etc/solartt/panel.toml
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+UMask=0077
+StateDirectory=solartt-panel
+StateDirectoryMode=0700
+NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+InaccessiblePaths=-/var/lib/solartt -/etc/solartt/tls
+[Install]
+WantedBy=multi-user.target

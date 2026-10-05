@@ -1,0 +1,5 @@
+[[main_hosts]]
+hostname = "media.example.org"
+cert_chain_path = "/etc/solartt/tls/fullchain.pem"
+private_key_path = "/etc/solartt/tls/private.key"
+allowed_sni = ["media.example.org"]
