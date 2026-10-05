@@ -1274,9 +1274,13 @@ mod tests {
         let session = account(&e, Some(101)).await;
         let delivered = Arc::new(AtomicU64::new(0));
         let mut tasks = vec![];
-        for _ in 0..20 {
+        // Establish every transport before the first writer can exhaust quota.
+        let sessions: Vec<_> = (0..20)
+            .map(|_| e.open_session(session.identity.clone()).unwrap())
+            .collect();
+        for session in sessions {
             let e = e.clone();
-            let session = session.clone();
+            // Each worker represents a separate transport/device of this user.
             let delivered = delivered.clone();
             tasks.push(tokio::spawn(async move {
                 while let Ok(p) = e.reserve(&session, 1, false).await {

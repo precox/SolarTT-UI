@@ -152,6 +152,30 @@ backend existing
                 if error.code != 503 or time.monotonic() >= deadline:
                     raise
                 time.sleep(0.1)
+        # Filesystem permissions deny unrelated users; peer UID validation also
+        # denies a process that can bypass those permissions but is not allowed.
+        run("sudo", "-u", "nobody", "python3", "-c", """import errno,socket
+s=socket.socket(socket.AF_UNIX)
+try:
+    s.connect('/run/solartt/control.sock')
+except OSError as error:
+    assert error.errno == errno.EACCES
+else:
+    raise AssertionError('Unrelated user accessed control socket')
+""")
+        run("sudo", "python3", "-c", """import socket
+s=socket.socket(socket.AF_UNIX); s.settimeout(2); s.connect('/run/solartt/control.sock')
+try:
+    s.sendall(b'{"request_id":"uid-probe","expected_revision":null,"command":{"op":"info"}}\\n')
+    response=s.recv(4096)
+except (ConnectionResetError,BrokenPipeError):
+    response=b''
+assert not response, 'Unlisted peer UID received control data'
+""")
+        run("sudo", "-u", "solartt-panel", "python3", "-c", """import os
+assert not os.access('/var/lib/solartt/encryption.key',os.R_OK)
+assert not os.access('/etc/solartt/tls/private.key',os.R_OK)
+""")
         assert not command({"op": "users", "after": None})["users"]
         user = command({"op": "create_user", "label": "Synthetic package fixture", "policy": {"limit_bytes": 100000, "expires_at": None, "reset_monthly": True}})["resource_id"]
         credential = command({"op": "create_credential", "user_id": user, "label": "Fixture"})["resource_id"]

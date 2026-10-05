@@ -73,6 +73,7 @@ impl Store {
         }
         db.busy_timeout(std::time::Duration::from_secs(5))?;
         db.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;
+            BEGIN IMMEDIATE;
             CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL);
             INSERT INTO schema_version SELECT 1 WHERE NOT EXISTS (SELECT 1 FROM schema_version);
             CREATE TABLE IF NOT EXISTS document (id INTEGER PRIMARY KEY CHECK(id=1), data TEXT NOT NULL);
@@ -82,7 +83,8 @@ impl Store {
             CREATE TABLE IF NOT EXISTS requests (id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL,
                 revision INTEGER NOT NULL, resource_id TEXT, user_id TEXT);
             CREATE TABLE IF NOT EXISTS audit (seq INTEGER PRIMARY KEY, timestamp INTEGER NOT NULL,
-                revision INTEGER NOT NULL, operation TEXT NOT NULL, subject TEXT);")?;
+                revision INTEGER NOT NULL, operation TEXT NOT NULL, subject TEXT);
+            COMMIT;")?;
         let version: u32 = db.query_row("SELECT version FROM schema_version", [], |r| r.get(0))?;
         if version != 1 {
             return Err(Error::Invalid("Unsupported database schema"));
