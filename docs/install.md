@@ -108,3 +108,13 @@ surrounding proxy configuration and is not managed by the panel.
 Configuration, data, keys and service accounts are preserved, including on purge.
 Delete retained data separately only after verifying backups. Package operations
 do not edit unrelated VPN/proxy/SSH services.
+
+## Resource containment
+
+Packaged units cap agent memory at 512 MiB (soft pressure at 384 MiB), 128 tasks
+and 4096 file descriptors; panel memory at 192 MiB (pressure at 128 MiB),
+64 tasks and 1024 descriptors. Managed forwarding additionally limits inbound
+TLS transports, outbound TCP/UDP sockets and UDP flows. These are containment
+defaults, not a tested concurrent-user capacity. Reaching a memory cap can restart
+the service and interrupt its sessions. Review systemd drop-ins after load tests
+when adjusting deployment limits; retain service-local resource containment.

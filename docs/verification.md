@@ -83,3 +83,22 @@ upgrade between distinct versions, dependency
 license obligation review, sustained load/resource limits and measurements on
 the intended node. The release checklist remains unchecked where the full requirement
 has not been verified.
+
+## Security review follow-up — 2026-10-05
+
+Code commit `78520563ce178f64d81fc5f84424a6baf90af228` passed all four jobs in
+[run 37306928493](https://github.com/precox/SolarTT-UI/actions/runs/37306928493).
+It upgrades production H2 to 0.4.19, adds bounded managed outbound resources
+and service memory/task/file-descriptor containment, and scrubs two malformed
+request diagnostics. The 127 passing tests comprise 26 portable, 95 upstream,
+5 managed transport and 1 raw-frame denial-of-service regression. The original
+upstream lockfile is minimally resolved for the reviewed h2 dependency upgrade
+before its library tests; production uses the committed root lockfile.
+
+The security job scanned full Git history and tracked source with Gitleaks and
+found zero confirmed secrets. RustSec found zero known vulnerabilities in the
+production lockfile, with visible unmaintained-parser warnings. Native acceptance
+again passed official CLI, browser, HAProxy/TLS, installed IPC and package lifecycle
+checks. Both unpacked packages and the artifact directory passed secret scans.
+See [the security review](security-review-2026-10-05.md) for methods and residual
+risks. Development artifact 11344456785 belongs to this code commit.

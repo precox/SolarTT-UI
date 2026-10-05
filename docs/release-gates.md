@@ -16,6 +16,8 @@
 - [x] CA verification, SNI passthrough, cover HTTP and TLS renewal tested.
 - [ ] Measured CPU/RSS, TCP throughput, UDP loss and disk sync costs.
 - [ ] CI, dependency licenses, checksums and reproducible upstream pin recorded.
+- [x] Full Git history, tracked source and unpacked development packages scanned for secrets.
+- [x] Production lockfile has no known RustSec vulnerabilities; parser maintenance warnings recorded.
 
 Unchecked gates are not implemented or verified guarantees. This file is updated
 with concrete test commands and results, not with anticipated outcomes.

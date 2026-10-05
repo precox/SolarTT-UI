@@ -1,0 +1,2 @@
+# Preserve unified-diff context markers on otherwise blank lines.
+upstream/*.patch -whitespace

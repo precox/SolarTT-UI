@@ -10,6 +10,9 @@
 - Official deep-link/TOML export with local SVG QR generation.
 - Pinned upstream with explicit optional managed-mode patches.
 - Development CI, Ubuntu 24.04 package templates and isolated package smoke test.
+- H2 0.4.19 security update with a raw empty-frame flood regression.
+- Bounded managed outbound TCP/UDP sockets and UDP flows; service resource containment.
+- Full-history/source/package secret scans and a RustSec dependency gate.
 
 This is development code, not a verified stable release. See the verification
 record and release gates. Native regression, managed transport and isolated

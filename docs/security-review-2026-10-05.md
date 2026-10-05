@@ -13,6 +13,9 @@ test or a guarantee that every vulnerability or secret format has been found.
 - Gitleaks 8.30.1 found no confirmed credentials. Its two initial findings were
   the literal Rust crate path `crates/policy` in `Cargo.toml`. The configuration
   excludes only that exact value in a Cargo manifest; other findings fail CI.
+- All 23 available job logs from the eight earlier CI runs also passed Gitleaks.
+  Locally generated disposable SSH keys were correctly rejected; the manifest
+  exception was tested against another filename and did not suppress it.
 - A separate byte comparison found no copy of the local SSH deploy private key
   in any reachable blob. The ignored local key has mode `0600`; it is not a
   project file or package input. No private-key material is included in this report.
@@ -97,5 +100,15 @@ RustSec database on each run rather than freezing vulnerability knowledge.
 Local post-change source/history scans passed. The production `Cargo.lock` scan
 found zero known vulnerabilities using RustSec database commit
 `ef6173cbc5c50ec8166f9a5b28f07834144373ee` (1290 advisories). All 26 portable tests
-passed. Native transport/package results must be checked on the exact published
-commit before these changes are considered accepted.
+passed.
+
+All four jobs passed for code commit
+`78520563ce178f64d81fc5f84424a6baf90af228` in
+[Actions run 37306928493](https://github.com/precox/SolarTT-UI/actions/runs/37306928493):
+26 portable tests, 95 upstream library tests, 5 managed transport tests and
+1 raw-frame security regression (127 total), plus the explicit release measurement.
+Installed-package, official CLI and headless browser checks passed. Both unpacked
+packages and artifact files had zero Gitleaks findings. Development artifact
+`11344456785` has ZIP digest
+`sha256:2e3f1c427de6714213e8ba9589dc21ab68c677b67ba2958f3f67feb79e49f3b1`.
+The final review/documentation commit does not change the tested application code.
