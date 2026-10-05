@@ -43,7 +43,9 @@ cargo test -p solartt-agent
 
 See [architecture](docs/architecture.md), [release gates](docs/release-gates.md),
 [installation](docs/install.md), [backup and upgrade](docs/backup-upgrade.md),
-[contributing](CONTRIBUTING.md) and [security](SECURITY.md).
+[client compatibility](docs/client-compatibility.md),
+[dependency notices](docs/dependency-notices.md), [contributing](CONTRIBUTING.md)
+and [security](SECURITY.md).
 
 ## License
 

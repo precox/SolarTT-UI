@@ -48,6 +48,7 @@ impl Client {
         })
         .await
         .unwrap();
+        tcp.set_nodelay(true).unwrap();
         let tls = connector
             .connect("fixture.example.org".try_into().unwrap(), tcp)
             .await
@@ -232,7 +233,7 @@ allowed_sni = ["fixture.example.org"]
             let mut streams = tokio::task::JoinSet::new();
             loop {
                 tokio::select! {
-                    result = tcp.accept() => { let (mut socket, _) = result.unwrap(); streams.spawn(async move {
+                    result = tcp.accept() => { let (mut socket, _) = result.unwrap(); socket.set_nodelay(true).unwrap(); streams.spawn(async move {
                         let mut bytes = [0u8;4096]; while let Ok(n) = socket.read(&mut bytes).await { if n == 0 || socket.write_all(&bytes[..n]).await.is_err() { break; } }
                     }); },
                     _ = streams.join_next(), if !streams.is_empty() => {},

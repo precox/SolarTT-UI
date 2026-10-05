@@ -12,4 +12,5 @@
 - Development CI, Ubuntu 24.04 package templates and isolated package smoke test.
 
 This is development code, not a verified stable release. See the verification
-record and release gates; native/network/package checks remain pending.
+record and release gates. Native regression, managed transport and isolated
+package checks passed in CI; Android and operational pilot checks remain pending.
