@@ -65,6 +65,17 @@ do not put passwords in shell arguments, history or an environment variable.
 The password must be 12–1024 bytes. Replacing the hash requires a panel restart,
 which also expires its in-memory administrator sessions.
 
+In Bash, authenticate sudo before reading the password, then use a shell-local
+variable and pipe (the variable is never exported):
+
+```bash
+sudo -v
+IFS= read -r -s -p 'Panel password: ' solartt_admin_password
+printf '\n'
+printf '%s' "$solartt_admin_password" | sudo -n -u solartt-panel solartt-panel --init-admin /var/lib/solartt-panel/admin.hash
+unset solartt_admin_password
+```
+
 Install the CA certificate chain and private key named in `hosts.toml` into
 `/etc/solartt/tls/`, owned root:solartt-agent, modes 0640. The panel cannot access
 this directory. Use a valid publicly trusted certificate for actual clients.

@@ -93,7 +93,7 @@ fn load_tls(config: &Config) -> io::Result<TlsHostsSettings> {
     toml::from_str(&std::fs::read_to_string(&config.tls_hosts)?)
         .map_err(|_| io::Error::other("Invalid TLS hosts settings"))
 }
-async fn process(req: Request, engine: Arc<Engine>, core: Arc<Core>, config: &Config) -> Response {
+async fn process(req: Request, engine: Arc<Engine>, config: &Config) -> Response {
     let id = req.request_id.clone();
     let result = match &req.command {
         Command::Info => ResultData::Info {
@@ -202,12 +202,7 @@ async fn process(req: Request, engine: Arc<Engine>, core: Arc<Core>, config: &Co
         result,
     }
 }
-async fn serve(
-    stream: UnixStream,
-    engine: Arc<Engine>,
-    core: Arc<Core>,
-    config: Config,
-) -> io::Result<()> {
+async fn serve(stream: UnixStream, engine: Arc<Engine>, config: Config) -> io::Result<()> {
     let uid = stream.peer_cred()?.uid();
     if uid != unsafe { libc::geteuid() } && !config.allowed_uids.contains(&uid) {
         return Err(io::ErrorKind::PermissionDenied.into());
@@ -228,7 +223,7 @@ async fn serve(
     if !solartt_control_api::validate_request_id(&req.request_id) {
         return Err(io::ErrorKind::InvalidData.into());
     }
-    let response = process(req, engine, core, &config).await;
+    let response = process(req, engine, &config).await;
     let mut bytes = serde_json::to_vec(&response).map_err(|_| io::ErrorKind::InvalidData)?;
     bytes.push(b'\n');
     if bytes.len() > MAX_FRAME_BYTES {
@@ -239,7 +234,7 @@ async fn serve(
         .map_err(|_| io::ErrorKind::TimedOut)??;
     tx.shutdown().await
 }
-async fn control(config: Config, engine: Arc<Engine>, core: Arc<Core>) -> io::Result<()> {
+async fn control(config: Config, engine: Arc<Engine>) -> io::Result<()> {
     use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
     if let Ok(meta) = std::fs::symlink_metadata(&config.control_socket) {
         if !meta.file_type().is_socket() || meta.uid() != unsafe { libc::geteuid() } {
@@ -264,11 +259,10 @@ async fn control(config: Config, engine: Arc<Engine>, core: Arc<Core>) -> io::Re
             .map_err(|_| io::ErrorKind::Interrupted)?;
         let (stream, _) = listener.accept().await?;
         let engine = engine.clone();
-        let core = core.clone();
         let config = config.clone();
         tokio::spawn(async move {
             let _permit = permit;
-            let _ = serve(stream, engine, core, config).await;
+            let _ = serve(stream, engine, config).await;
         });
     }
 }
@@ -326,7 +320,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     let mut hup = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::hangup())?;
     let mut term = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
-    let api = tokio::spawn(control(config.clone(), engine.clone(), core.clone()));
+    let api = tokio::spawn(control(config.clone(), engine.clone()));
     let maintenance = tokio::spawn({
         let e = engine.clone();
         async move {

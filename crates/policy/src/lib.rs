@@ -701,7 +701,7 @@ impl Engine {
         if request.expected_revision != Some(p.document.revision) {
             return Err(Error::RevisionConflict);
         }
-        if state.user.period_id == *period_id {
+        if state.user.period_id == *period_id && !automatic {
             return Err(Error::Invalid("Already in requested period"));
         }
         // Returning a known unused lease is safe only while permit creation is paused.
@@ -1566,12 +1566,49 @@ mod tests {
         e.rollover_at(next + 10).await.unwrap();
         assert_eq!(e.users()[0].confirmed_bytes, 7);
         assert_eq!(e.revision(), revision);
+        drop(e);
         assert!(Engine::open_in_timezone(
             &dir.path().join("policy.sqlite"),
             [9; 32],
             "Europe/Moscow"
         )
         .is_err());
+    }
+    #[tokio::test]
+    async fn manually_selected_calendar_period_advances_schedule_without_refunding_spend() {
+        let (_dir, e) = fixture();
+        let session = account(&e, Some(100)).await;
+        let user_id = session.identity.user_id.clone();
+        e.apply(request(
+            &e,
+            Command::SetPolicy {
+                user_id: user_id.clone(),
+                policy: UserPolicy {
+                    limit_bytes: Some(100),
+                    expires_at: None,
+                    reset_monthly: true,
+                },
+            },
+        ))
+        .await
+        .unwrap();
+        let boundary = e.users()[0].next_reset_at.unwrap();
+        let (period_id, next_boundary) = calendar::period(e.timezone, boundary).unwrap();
+        e.apply(request(&e, Command::StartPeriod { user_id, period_id }))
+            .await
+            .unwrap();
+        e.reserve(&session, 7, false)
+            .await
+            .unwrap()
+            .finish(7)
+            .unwrap();
+        e.rollover_at(boundary).await.unwrap();
+        assert_eq!(e.users()[0].next_reset_at, Some(next_boundary));
+        assert_eq!(e.users()[0].confirmed_bytes, 7);
+        assert!(!session.is_cancelled());
+        let revision = e.revision();
+        e.rollover_at(boundary + 1).await.unwrap();
+        assert_eq!(e.revision(), revision);
     }
     #[tokio::test]
     async fn disconnecting_api_caller_does_not_cancel_policy_commit() {

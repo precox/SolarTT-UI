@@ -19,7 +19,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def run(*args, input=None):
-    return subprocess.run(args, input=input, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    result = subprocess.run(args, input=input, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if result.returncode:
+        # Diagnostics contain command output only; never include stdin or profiles.
+        print(result.stderr.decode(errors="replace"), flush=True)
+        result.check_returncode()
+    return result
 
 
 def main():
@@ -59,7 +64,7 @@ def main():
     def certificate(serial):
         cert, key = temporary / f"cert-{serial}.pem", temporary / f"key-{serial}.pem"
         run("openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1", "-set_serial", str(serial),
-            "-subj", "/CN=media.example.org", "-addext", "subjectAltName=DNS:media.example.org", "-keyout", str(key), "-out", str(cert))
+            "-subj", "/CN=media.example.org", "-addext", "subjectAltName=DNS:media.example.org,DNS:tg.example.org", "-keyout", str(key), "-out", str(cert))
         for source, name in ((cert, "fullchain.pem"), (key, "private.key")):
             target = config / "tls" / name
             stage = str(target) + ".new"
@@ -80,6 +85,31 @@ def main():
             pass
     cover = http.server.ThreadingHTTPServer(("127.0.0.1", 19080), Cover)
     threading.Thread(target=cover.serve_forever, daemon=True).start()
+    # User-owned processes on unprivileged fixture ports; no host proxy configuration.
+    proxy_config = temporary / "haproxy.cfg"
+    proxy_config.write_text("""global
+    maxconn 32
+defaults
+    mode tcp
+    timeout connect 3s
+    timeout client 10s
+    timeout server 10s
+frontend fixture
+    bind 127.0.0.1:19444
+    tcp-request inspect-delay 3s
+    tcp-request content accept if { req.ssl_hello_type 1 }
+    use_backend tunnel if { req.ssl_sni -i media.example.org }
+    use_backend existing if { req.ssl_sni -i tg.example.org }
+    tcp-request content reject if !{ req.ssl_sni -i media.example.org tg.example.org }
+backend tunnel
+    server tunnel 127.0.0.1:19443
+backend existing
+    server existing 127.0.0.1:19445
+""")
+    run("haproxy", "-c", "-f", str(proxy_config))
+    proxy = subprocess.Popen(["haproxy", "-db", "-f", str(proxy_config)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    existing = subprocess.Popen(["openssl", "s_server", "-quiet", "-www", "-accept", "127.0.0.1:19445",
+        "-cert", str(cert), "-key", str(temporary / "key-1.pem")], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
         run("sudo", "systemctl", "start", *services)
         deadline = time.monotonic() + 15
@@ -110,7 +140,16 @@ def main():
             if result["result"]["kind"] == "error":
                 raise RuntimeError("Agent command failed")
             return result["result"]
-        assert command({"op": "info"})["info"]["readiness"]
+        # Type=simple starts before the agent has opened its IPC/TLS listeners.
+        deadline = time.monotonic() + 15
+        while True:
+            try:
+                assert command({"op": "info"})["info"]["readiness"]
+                break
+            except urllib.error.HTTPError as error:
+                if error.code != 503 or time.monotonic() >= deadline:
+                    raise
+                time.sleep(0.1)
         assert not command({"op": "users", "after": None})["users"]
         user = command({"op": "create_user", "label": "Synthetic package fixture", "policy": {"limit_bytes": 100000, "expires_at": None, "reset_monthly": True}})["resource_id"]
         credential = command({"op": "create_credential", "user_id": user, "label": "Fixture"})["resource_id"]
@@ -127,7 +166,7 @@ def main():
             def __init__(self, cafile):
                 context = ssl.create_default_context(cafile=str(cafile))
                 context.set_alpn_protocols(["h2"])
-                self.socket = context.wrap_socket(socket.create_connection(("127.0.0.1", 19443), timeout=3), server_hostname="media.example.org")
+                self.socket = context.wrap_socket(socket.create_connection(("127.0.0.1", 19444), timeout=3), server_hostname="media.example.org")
                 self.socket.settimeout(3)
                 self.h2 = H2Connection(config=H2Configuration(client_side=True, header_encoding="utf-8"))
                 self.h2.initiate_connection()
@@ -152,6 +191,11 @@ def main():
         bad.close()
         probe = H2Probe(cert)
         assert probe.check(basic) == "200"
+        # The second SNI retains its independent TLS endpoint and certificate.
+        existing_context = ssl.create_default_context(cafile=str(cert))
+        with existing_context.wrap_socket(socket.create_connection(("127.0.0.1", 19444), timeout=3), server_hostname="tg.example.org") as connection:
+            connection.sendall(b"GET / HTTP/1.0\r\nHost: tg.example.org\r\n\r\n")
+            assert b"200" in connection.recv(4096).split(b"\r\n", 1)[0]
         pid = run("systemctl", "show", services[0], "-p", "MainPID", "--value").stdout.strip()
         old_cert = hashlib.sha256(probe.socket.getpeercert(binary_form=True)).digest()
         cert = certificate(2)
@@ -173,7 +217,7 @@ def main():
         assert pid == run("systemctl", "show", services[0], "-p", "MainPID", "--value").stdout.strip()
         context = ssl.create_default_context(cafile=str(cert))
         context.set_alpn_protocols(["http/1.1"])
-        with context.wrap_socket(socket.create_connection(("127.0.0.1", 19443), timeout=3), server_hostname="media.example.org") as connection:
+        with context.wrap_socket(socket.create_connection(("127.0.0.1", 19444), timeout=3), server_hostname="media.example.org") as connection:
             connection.sendall(b"GET / HTTP/1.1\r\nHost: media.example.org\r\nConnection: close\r\n\r\n")
             assert b"200" in connection.recv(4096).split(b"\r\n", 1)[0]
         command({"op": "block_user", "user_id": user, "blocked": True})
@@ -196,10 +240,17 @@ def main():
         run("sudo", "test", "-f", str(data / "policy.sqlite"))
         assert key_digest == run("sudo", "sha256sum", str(data / "encryption.key")).stdout
         assert sentinel_pid == run("systemctl", "show", "ssh.service", "-p", "MainPID", "--value").stdout.strip()
-        print("Package install, API, verified TLS, reload, cover, revoke, backup, reinstall and removal checks passed")
+        print("Package install, API, verified TLS, SNI passthrough, reload, cover, revoke, backup, reinstall and removal checks passed")
     finally:
         subprocess.run(["sudo", "systemctl", "stop", *services], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         cover.shutdown()
+        for process in (proxy, existing):
+            process.terminate()
+            try:
+                process.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
         for key in temporary.glob("key-*.pem"):
             key.unlink()
 

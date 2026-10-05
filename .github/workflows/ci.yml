@@ -31,15 +31,32 @@ jobs:
       - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d
         with:
           toolchain: 1.95.0
-      - run: sudo apt-get update && sudo apt-get install -y cmake libclang-dev pkg-config python3-h2 openssl
+      - run: sudo apt-get update && sudo apt-get install -y cmake libclang-dev pkg-config python3-h2 openssl haproxy
       - run: python3 scripts/prepare_upstream.py
       - run: cargo test --locked -p solartt-agent -- --test-threads=1
       - run: cargo build --locked --release -p solartt-agent -p solartt-panel -p solartt-admin
       - run: cargo metadata --locked --format-version 1 | python3 scripts/licenses.py
       - run: python3 scripts/package.py
       - run: python3 scripts/package_smoke.py
+      - name: Service diagnostics on failure
+        if: failure()
+        run: sudo journalctl -u solartt-agent.service -u solartt-panel.service --no-pager -n 100
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: solartt-linux-x86_64-development
           path: dist/
           retention-days: 7
+  legacy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d
+        with:
+          toolchain: 1.95.0
+      - run: sudo apt-get update && sudo apt-get install -y cmake libclang-dev pkg-config
+      - run: python3 scripts/prepare_upstream.py
+      - name: Patched upstream regression tests with upstream lockfile
+        run: cargo test --manifest-path .upstream/lib/Cargo.toml --locked --lib -- --test-threads=1
+        env:
+          CARGO_TARGET_DIR: target/upstream-regression
