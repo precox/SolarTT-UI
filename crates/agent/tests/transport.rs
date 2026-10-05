@@ -469,3 +469,97 @@ async fn rotation_targets_one_profile_and_expiry_closes_remaining_user_transport
     assert!(complete);
     b.closed().await;
 }
+
+/// Serial loopback measurements, explicitly separate from acceptance tests.
+/// They describe this runner and do not establish production capacity.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[ignore = "run explicitly with --release for isolated measurements"]
+async fn measure_loopback_transport_and_durable_leases() {
+    fn cpu_seconds() -> f64 {
+        let mut value = std::mem::MaybeUninit::<libc::rusage>::uninit();
+        assert_eq!(
+            unsafe { libc::getrusage(libc::RUSAGE_SELF, value.as_mut_ptr()) },
+            0
+        );
+        let value = unsafe { value.assume_init() };
+        (value.ru_utime.tv_sec + value.ru_stime.tv_sec) as f64
+            + (value.ru_utime.tv_usec + value.ru_stime.tv_usec) as f64 / 1_000_000.0
+    }
+    let fixture = Fixture::new().await;
+    let (user, _, basic) = account(&fixture.engine, "measurement", Some(128 * 1024 * 1024)).await;
+    let client = fixture.client().await;
+    let (status, mut tx, mut rx) = client.request(&fixture.tcp.to_string(), &basic).await;
+    assert_eq!(status, 200);
+    let chunk = Bytes::from(vec![42; 32768]);
+    let cpu_start = cpu_seconds();
+    let started = std::time::Instant::now();
+    for _ in 0..1024 {
+        tx.send_data(chunk.clone(), false).unwrap();
+        assert_eq!(
+            payload(&mut rx, chunk.len()).await.as_slice(),
+            chunk.as_ref()
+        );
+    }
+    let tcp_seconds = started.elapsed().as_secs_f64();
+    let tcp_cpu_seconds = cpu_seconds() - cpu_start;
+    let (status, mut udp_tx, mut udp_rx) = client.request("_udp2", &basic).await;
+    assert_eq!(status, 200);
+    let datagram = vec![43; 1200];
+    let started = std::time::Instant::now();
+    for _ in 0..1000 {
+        udp_tx
+            .send_data(udp_frame(fixture.udp, &datagram), false)
+            .unwrap();
+        let reply = payload(&mut udp_rx, 40 + datagram.len()).await;
+        assert_eq!(&reply[40..], datagram.as_slice());
+    }
+    let udp_seconds = started.elapsed().as_secs_f64();
+    let confirmed = fixture
+        .engine
+        .users()
+        .into_iter()
+        .find(|u| u.id == user)
+        .unwrap()
+        .confirmed_bytes;
+    assert_eq!(confirmed, 2 * 32 * 1024 * 1024 + 2 * 1000 * 1200);
+
+    let (_, _, lease_basic) = account(&fixture.engine, "lease measurement", None).await;
+    let lease_session = fixture
+        .engine
+        .open_session(fixture.engine.authenticate(&lease_basic).unwrap())
+        .unwrap();
+    let mut lease_seconds = 0.0;
+    for _ in 0..100 {
+        let started = std::time::Instant::now();
+        let permit = fixture
+            .engine
+            .reserve(&lease_session, 256 * 1024, false)
+            .await
+            .unwrap();
+        lease_seconds += started.elapsed().as_secs_f64();
+        assert_eq!(permit.amount(), 256 * 1024);
+        permit.finish(256 * 1024).unwrap();
+    }
+    let memory: Vec<_> = std::fs::read_to_string("/proc/self/status")
+        .unwrap()
+        .lines()
+        .filter(|line| line.starts_with("VmRSS:") || line.starts_with("VmHWM:"))
+        .map(str::to_owned)
+        .collect();
+    println!(
+        "SOLARTT_MEASUREMENT {}",
+        serde_json::json!({
+            "scope": "release build, serial loopback, 2 runtime workers; client and echo servers included",
+            "tcp_one_way_bytes": 32 * 1024 * 1024,
+            "tcp_roundtrip_seconds": tcp_seconds,
+            "tcp_bidirectional_payload_mib_per_second": 64.0 / tcp_seconds,
+            "tcp_process_cpu_seconds": tcp_cpu_seconds,
+            "udp_serial_datagrams": 1000, "udp_serial_loss": 0,
+            "udp_roundtrip_seconds": udp_seconds,
+            "confirmed_transport_payload_bytes": confirmed,
+            "durable_lease_grants": 100, "lease_bytes": 256 * 1024,
+            "mean_durable_lease_grant_ms_including_scheduling": lease_seconds * 10.0,
+            "process_memory": memory
+        })
+    );
+}

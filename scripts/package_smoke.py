@@ -170,7 +170,9 @@ backend existing
                 context.set_alpn_protocols(["h2"])
                 self.socket = context.wrap_socket(socket.create_connection(("127.0.0.1", 19444), timeout=3), server_hostname="media.example.org")
                 self.socket.settimeout(3)
-                self.h2 = H2Connection(config=H2Configuration(client_side=True, header_encoding="utf-8"))
+                # Ubuntu's hyper-h2 validator requires :path even for CONNECT.
+                # Send the authority-only CONNECT form used by the official client.
+                self.h2 = H2Connection(config=H2Configuration(client_side=True, header_encoding="utf-8", validate_outbound_headers=False))
                 self.h2.initiate_connection()
                 self.socket.sendall(self.h2.data_to_send())
             def check(self, basic):

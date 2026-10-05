@@ -6,6 +6,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+defaults:
+  run:
+    shell: bash
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -34,8 +37,26 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y cmake libclang-dev pkg-config python3-h2 openssl haproxy
       - run: python3 scripts/prepare_upstream.py
       - run: python3 scripts/prepare_client.py
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        id: native-cache
+        with:
+          path: |
+            ~/.cargo/registry
+            target
+          key: native-ubuntu24-rust1.95-${{ hashFiles('Cargo.lock', 'upstream/pin.json', 'upstream/*.patch') }}
       - run: cargo test --locked -p solartt-agent -- --test-threads=1
       - run: cargo build --locked --release -p solartt-agent -p solartt-panel -p solartt-admin
+      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ~/.cargo/registry
+            target
+          key: ${{ steps.native-cache.outputs.cache-primary-key }}
+      - name: Isolated release measurements
+        run: |
+          mkdir -p dist
+          cargo test --locked --release -p solartt-agent --test transport measure_loopback_transport_and_durable_leases -- --ignored --nocapture --test-threads=1 | tee dist/measurements.txt
       - run: cargo metadata --locked --format-version 1 | python3 scripts/licenses.py
       - run: python3 scripts/package.py
       - run: python3 scripts/package_smoke.py

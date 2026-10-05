@@ -1,0 +1,84 @@
+{
+  "packages": [
+    {
+      "name": "nom-derive-impl",
+      "version": "0.10.1",
+      "commit": "f83b118914523afc981ec1617962fe63bb3a4774",
+      "sources": [
+        {
+          "file": "LICENSE-MIT",
+          "url": "https://raw.githubusercontent.com/rust-bakery/nom-derive/f83b118914523afc981ec1617962fe63bb3a4774/LICENSE-MIT",
+          "sha256": "a5c61b93b6ee1d104af9920cf020ff3c7efe818e31fe562c72261847a728f513"
+        },
+        {
+          "file": "LICENSE-APACHE",
+          "url": "https://raw.githubusercontent.com/rust-bakery/nom-derive/f83b118914523afc981ec1617962fe63bb3a4774/LICENSE-APACHE",
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        }
+      ]
+    },
+    {
+      "name": "qlog",
+      "version": "0.15.2",
+      "commit": "516b8e3b499df96f79b4d7c9f972a045875e640f",
+      "sources": [
+        {
+          "file": "COPYING",
+          "url": "https://raw.githubusercontent.com/cloudflare/quiche/516b8e3b499df96f79b4d7c9f972a045875e640f/COPYING",
+          "sha256": "2ef4b5abfce387a83933bda738e72467a79d15c1c17679143ec55011dae66b84"
+        }
+      ]
+    },
+    {
+      "name": "yasna",
+      "version": "0.5.2",
+      "commit": "b7e65f9a4c317494cce2d18ea02b3d6eaaea7985",
+      "sources": [
+        {
+          "file": "LICENSE-MIT",
+          "url": "https://raw.githubusercontent.com/qnighy/yasna.rs/b7e65f9a4c317494cce2d18ea02b3d6eaaea7985/LICENSE-MIT",
+          "sha256": "2a7df90e60fd5512b8bca35d3ce90e068f21c52d962855053fd1d9e2e7ca0f16"
+        },
+        {
+          "file": "LICENSE-APACHE",
+          "url": "https://raw.githubusercontent.com/qnighy/yasna.rs/b7e65f9a4c317494cce2d18ea02b3d6eaaea7985/LICENSE-APACHE",
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        }
+      ]
+    },
+    {
+      "name": "winapi-i686-pc-windows-gnu",
+      "version": "0.4.0",
+      "commit": "796a8e6c2971dc2ff1bcff166e6671284f9b5b6b",
+      "sources": [
+        {
+          "file": "LICENSE-MIT",
+          "url": "https://raw.githubusercontent.com/retep998/winapi-rs/796a8e6c2971dc2ff1bcff166e6671284f9b5b6b/i686/LICENSE-MIT",
+          "sha256": "ce7bc3499fee93d5022ef430d5e4201e79a6d9154f3974e42f41349f0569e09b"
+        },
+        {
+          "file": "LICENSE-APACHE",
+          "url": "https://raw.githubusercontent.com/retep998/winapi-rs/796a8e6c2971dc2ff1bcff166e6671284f9b5b6b/i686/LICENSE-APACHE",
+          "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1"
+        }
+      ]
+    },
+    {
+      "name": "winapi-x86_64-pc-windows-gnu",
+      "version": "0.4.0",
+      "commit": "796a8e6c2971dc2ff1bcff166e6671284f9b5b6b",
+      "sources": [
+        {
+          "file": "LICENSE-MIT",
+          "url": "https://raw.githubusercontent.com/retep998/winapi-rs/796a8e6c2971dc2ff1bcff166e6671284f9b5b6b/x86_64/LICENSE-MIT",
+          "sha256": "ce7bc3499fee93d5022ef430d5e4201e79a6d9154f3974e42f41349f0569e09b"
+        },
+        {
+          "file": "LICENSE-APACHE",
+          "url": "https://raw.githubusercontent.com/retep998/winapi-rs/796a8e6c2971dc2ff1bcff166e6671284f9b5b6b/x86_64/LICENSE-APACHE",
+          "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1"
+        }
+      ]
+    }
+  ]
+}
