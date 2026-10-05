@@ -24,7 +24,9 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function waitFor(action, description, timeout = 15000) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
-    if (await action()) return;
+    if (chrome.exitCode !== null || chrome.signalCode !== null) throw new Error('Chrome exited unexpectedly');
+    // Navigation can temporarily destroy the previous JS execution context.
+    try { if (await action()) return; } catch { /* retry within the deadline */ }
     await pause(50);
   }
   throw new Error(`Timed out: ${description}`);
@@ -70,7 +72,7 @@ try {
     if (result.exceptionDetails) throw new Error('Browser evaluation failed');
     return result.result.value;
   }
-  async function visible(id) { return evaluate(`!document.getElementById(${JSON.stringify(id)})?.classList.contains('hidden')`); }
+  async function visible(id) { return evaluate(`(() => {const e=document.getElementById(${JSON.stringify(id)}); return !!e && !e.classList.contains('hidden');})()`); }
   await call('Page.enable');
   await call('Runtime.enable');
   await call('Page.navigate', {url: fixture.origin});
@@ -99,8 +101,11 @@ try {
   console.log('Browser login, create, issue, profile clearing, HTML label and logout checks passed');
 } finally {
   if (socket) socket.close();
-  chrome.kill('SIGTERM');
-  await Promise.race([new Promise(resolve => chrome.once('exit', resolve)), pause(3000)]);
-  if (chrome.exitCode === null) { chrome.kill('SIGKILL'); await new Promise(resolve => chrome.once('exit', resolve)); }
+  if (chrome.exitCode === null && chrome.signalCode === null) {
+    const exited = new Promise(resolve => chrome.once('exit', resolve));
+    chrome.kill('SIGTERM');
+    await Promise.race([exited, pause(3000)]);
+    if (chrome.exitCode === null && chrome.signalCode === null) { chrome.kill('SIGKILL'); await exited; }
+  }
   await rm(profile, {recursive: true, force: true});
 }
