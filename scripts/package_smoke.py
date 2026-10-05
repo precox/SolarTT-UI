@@ -13,6 +13,7 @@ import threading
 import time
 import tomllib
 import urllib.request
+import urllib.error
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -92,8 +93,8 @@ def main():
 defaults
     mode tcp
     timeout connect 3s
-    timeout client 10s
-    timeout server 10s
+    timeout client 60s
+    timeout server 60s
 frontend fixture
     bind 127.0.0.1:19444
     tcp-request inspect-delay 3s
@@ -110,6 +111,7 @@ backend existing
     proxy = subprocess.Popen(["haproxy", "-db", "-f", str(proxy_config)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     existing = subprocess.Popen(["openssl", "s_server", "-quiet", "-www", "-accept", "127.0.0.1:19445",
         "-cert", str(cert), "-key", str(temporary / "key-1.pem")], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    official = None
     try:
         run("sudo", "systemctl", "start", *services)
         deadline = time.monotonic() + 15
@@ -220,6 +222,37 @@ backend existing
         with context.wrap_socket(socket.create_connection(("127.0.0.1", 19444), timeout=3), server_hostname="media.example.org") as connection:
             connection.sendall(b"GET / HTTP/1.1\r\nHost: media.example.org\r\nConnection: close\r\n\r\n")
             assert b"200" in connection.recv(4096).split(b"\r\n", 1)[0]
+        # Exercise the exported endpoint fields with the pinned official client.
+        # SOCKS mode is unprivileged: no TUN, routes, DNS or firewall mutations.
+        endpoint_fields = dict(client)
+        endpoint_fields["addresses"] = ["127.0.0.1:19444"]
+        endpoint_fields["certificate"] = cert.read_text()
+        official_config = temporary / "official-client.toml"
+        official_config.write_text('loglevel = "error"\nvpn_mode = "general"\nkillswitch_enabled = false\n'
+            'post_quantum_group_enabled = false\nexclusions_preresolve_enabled = false\n'
+            '[endpoint]\n' + "\n".join(f"{key} = {json.dumps(value)}" for key, value in endpoint_fields.items()) +
+            '\n[listener.socks]\naddress = "127.0.0.1:11080"\n')
+        official_config.chmod(0o600)
+        official = subprocess.Popen([str(ROOT / ".dev/official-client/trusttunnel_client"), "--config", str(official_config)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        deadline = time.monotonic() + 10
+        while True:
+            if official.poll() is not None:
+                raise RuntimeError("Official CLI exited before opening its SOCKS listener")
+            try:
+                with socket.create_connection(("127.0.0.1", 11080), timeout=1):
+                    break
+            except OSError:
+                if time.monotonic() >= deadline:
+                    raise RuntimeError("Official CLI SOCKS listener failed to start")
+                time.sleep(0.1)
+        # A single small public HTTPS request verifies real outbound TCP through
+        # the official client, the SNI proxy and the managed packaged endpoint.
+        # This check depends on runner DNS/egress and example.com availability.
+        run("curl", "--silent", "--show-error", "--fail", "--socks5", "127.0.0.1:11080",
+            "--connect-timeout", "10", "--max-time", "20", "--output", "/dev/null", "https://example.com/")
+        view = command({"op": "users", "after": None})["users"][0]
+        assert view["confirmed_bytes"] > 0 and view["active_sessions"] >= 2
         command({"op": "block_user", "user_id": user, "blocked": True})
         # There may be previously queued H2 control frames before EOF.
         deadline = time.monotonic() + 3
@@ -227,6 +260,7 @@ backend existing
             if time.monotonic() >= deadline:
                 raise RuntimeError("Revoked TLS connection remained open")
         probe.close()
+        assert command({"op": "users", "after": None})["users"][0]["active_sessions"] == 0
         run("sudo", "systemctl", "stop", *services)
         run("sudo", "-u", "solartt-agent", "solartt-admin", "backup", str(data / "policy.sqlite"), str(data / "snapshot.sqlite"))
         run("sudo", "-u", "solartt-agent", "solartt-admin", "restore", str(data / "snapshot.sqlite"), str(data / "encryption.key"), str(data / "restored.sqlite"))
@@ -244,7 +278,9 @@ backend existing
     finally:
         subprocess.run(["sudo", "systemctl", "stop", *services], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         cover.shutdown()
-        for process in (proxy, existing):
+        for process in (proxy, existing, official):
+            if process is None:
+                continue
             process.terminate()
             try:
                 process.wait(timeout=3)
@@ -253,6 +289,7 @@ backend existing
                 process.wait()
         for key in temporary.glob("key-*.pem"):
             key.unlink()
+        (temporary / "official-client.toml").unlink(missing_ok=True)
 
 if __name__ == "__main__":
     main()

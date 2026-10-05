@@ -49,6 +49,8 @@ def main():
             "source":package.get("source") or ("pinned TrustTunnel" if is_upstream else "local"),"notices":paths})
     (output / "manifest.json").write_text(json.dumps({"packages":records,"missing_license":missing},indent=2)+"\n")
     print(f"Collected notices for {len(records)} dependencies; {len(missing)} require review")
+    for package in missing:
+        print(f"Missing license metadata or notice: {package}")
 
 if __name__ == "__main__":
     main()

@@ -33,6 +33,7 @@ jobs:
           toolchain: 1.95.0
       - run: sudo apt-get update && sudo apt-get install -y cmake libclang-dev pkg-config python3-h2 openssl haproxy
       - run: python3 scripts/prepare_upstream.py
+      - run: python3 scripts/prepare_client.py
       - run: cargo test --locked -p solartt-agent -- --test-threads=1
       - run: cargo build --locked --release -p solartt-agent -p solartt-panel -p solartt-admin
       - run: cargo metadata --locked --format-version 1 | python3 scripts/licenses.py
