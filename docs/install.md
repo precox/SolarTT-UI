@@ -118,3 +118,11 @@ TLS transports, outbound TCP/UDP sockets and UDP flows. These are containment
 defaults, not a tested concurrent-user capacity. Reaching a memory cap can restart
 the service and interrupt its sessions. Review systemd drop-ins after load tests
 when adjusting deployment limits; retain service-local resource containment.
+
+## Shared TLS proxy integration
+
+Review [the proxy integration guide](proxy-integration.md) and packaged
+`examples/haproxy.cfg` before integrating with an existing endpoint/site. The
+managed VPN route receives plain TLS without PROXY headers; a reviewed Caddy
+route may receive PROXY v2 with a restricted listener allowlist. Both effective
+FIN timeouts must be explicit. The package never applies this example to a host.

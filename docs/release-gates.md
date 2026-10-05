@@ -14,6 +14,8 @@
 - [ ] Database migrations, backup and restore tested.
 - [ ] Fresh VM install/upgrade/uninstall preserves unrelated services.
 - [x] CA verification, SNI passthrough, cover HTTP and TLS renewal tested.
+- [x] Isolated HAProxy FIN cleanup preserves H2; actual Caddy PROXY v2 boundary tested.
+- [x] Development package payload/checksums and actual ELF runtime ABI/linkage checked.
 - [ ] Measured CPU/RSS, TCP throughput, UDP loss and disk sync costs.
 - [ ] CI, dependency licenses, checksums and reproducible upstream pin recorded.
 - [x] Full Git history, tracked source and unpacked development packages scanned for secrets.

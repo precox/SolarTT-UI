@@ -102,3 +102,14 @@ again passed official CLI, browser, HAProxy/TLS, installed IPC and package lifec
 checks. Both unpacked packages and the artifact directory passed secret scans.
 See [the security review](security-review-2026-10-05.md) for methods and residual
 risks. Development artifact 11344456785 belongs to this code commit.
+
+## Operational handoff follow-up
+
+Code `7ec4b1779e20bb3268e704c82a397742e34d81ae` passed all four jobs in
+[run 37389703858](https://github.com/precox/SolarTT-UI/actions/runs/37389703858).
+All 127 tests still pass, with additional package assertions for both half-close
+directions, a no-FIN control, preserved idle/live H2, actual Caddy PROXY v2,
+untrusted-peer rejection, TrustTunnel prefix refusal and real package ELF/linkage.
+The managed patch requires patched Rustls >=0.23.45. Package/artifact secret scans
+again pass. See [the follow-up report](handoff-review-2026-10-05.md) for scope,
+original upstream-lock findings, artifact digest and remaining requirements.

@@ -22,7 +22,8 @@ The root SolarTT-UI Apache-2.0 license does not relicense dependencies. Their
 original expressions and attribution files remain in the package. The collector
 records the declared alternatives without choosing a license on behalf of the
 maintainer. No binary from the official CLI compatibility fixture is included
-in SolarTT packages.
+in SolarTT packages. The official Caddy fixture is also test-only and is not
+redistributed.
 
 Reproduce collection after downloading resolved sources:
 

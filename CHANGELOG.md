@@ -13,6 +13,9 @@
 - H2 0.4.19 security update with a raw empty-frame flood regression.
 - Bounded managed outbound TCP/UDP sockets and UDP flows; service resource containment.
 - Full-history/source/package secret scans and a RustSec dependency gate.
+- HAProxy FIN integration example, half-close controls and actual Caddy PROXY v2 tests.
+- Package payload/checksum comparison and real ELF runtime dependency inspection.
+- Safe minimum Rustls version enforced in the managed upstream patch.
 
 This is development code, not a verified stable release. See the verification
 record and release gates. Native regression, managed transport and isolated
