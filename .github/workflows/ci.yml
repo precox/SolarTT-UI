@@ -51,6 +51,7 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y cmake libclang-dev pkg-config python3-h2 openssl haproxy
       - run: python3 scripts/prepare_upstream.py
       - run: python3 scripts/prepare_client.py
+      - run: python3 scripts/prepare_caddy.py
       - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         id: native-cache
         with:
@@ -73,6 +74,7 @@ jobs:
           cargo test --locked --release -p solartt-agent --test transport measure_loopback_transport_and_durable_leases -- --ignored --nocapture --test-threads=1 | tee dist/measurements.txt
       - run: cargo metadata --locked --format-version 1 | python3 scripts/licenses.py
       - run: python3 scripts/package.py
+      - run: python3 scripts/package_verify.py
       - run: python3 scripts/package_smoke.py
       - name: Scan unpacked packages and artifact files for secrets
         run: python3 scripts/security_check.py artifacts

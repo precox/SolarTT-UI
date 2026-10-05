@@ -16,6 +16,8 @@ import urllib.request
 import urllib.error
 from pathlib import Path
 
+from proxy_regression import ProxyFixture
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -86,33 +88,11 @@ def main():
             pass
     cover = http.server.ThreadingHTTPServer(("127.0.0.1", 19080), Cover)
     threading.Thread(target=cover.serve_forever, daemon=True).start()
-    # User-owned processes on unprivileged fixture ports; no host proxy configuration.
-    proxy_config = temporary / "haproxy.cfg"
-    proxy_config.write_text("""global
-    maxconn 32
-defaults
-    mode tcp
-    timeout connect 3s
-    timeout client 60s
-    timeout server 60s
-frontend fixture
-    bind 127.0.0.1:19444
-    tcp-request inspect-delay 3s
-    tcp-request content accept if { req.ssl_hello_type 1 }
-    use_backend tunnel if { req.ssl_sni -i media.example.org }
-    use_backend existing if { req.ssl_sni -i tg.example.org }
-    tcp-request content reject if !{ req.ssl_sni -i media.example.org tg.example.org }
-backend tunnel
-    server tunnel 127.0.0.1:19443
-backend existing
-    server existing 127.0.0.1:19445
-""")
-    run("haproxy", "-c", "-f", str(proxy_config))
-    proxy = subprocess.Popen(["haproxy", "-db", "-f", str(proxy_config)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    existing = subprocess.Popen(["openssl", "s_server", "-quiet", "-www", "-accept", "127.0.0.1:19445",
-        "-cert", str(cert), "-key", str(temporary / "key-1.pem")], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    proxies = ProxyFixture(temporary, cert, temporary / "key-1.pem")
     official = None
     try:
+        proxies.start()
+        run("haproxy", "-c", "-f", str(ROOT / "examples/haproxy.cfg"))
         run("sudo", "systemctl", "start", *services)
         deadline = time.monotonic() + 15
         while True:
@@ -219,6 +199,13 @@ assert not os.access('/etc/solartt/tls/private.key',os.R_OK)
         bad.close()
         probe = H2Probe(cert)
         assert probe.check(basic) == "200"
+        def check_control():
+            assert probe.check(basic) == "200", "FIN regression interrupted H2 control"
+        proxy_result = proxies.fin_regression(check_control)
+        proxies.proxy_v2_regression()
+        proxy_result["caddy_proxy_v2"] = "verified metadata and untrusted-peer rejection"
+        proxy_result["trusttunnel_proxy_header"] = "rejected; no-prefix TLS/H2 succeeds"
+        (ROOT / "dist/proxy-regression.json").write_text(json.dumps(proxy_result, indent=2) + "\n")
         # The second SNI retains its independent TLS endpoint and certificate.
         existing_context = ssl.create_default_context(cafile=str(cert))
         with existing_context.wrap_socket(socket.create_connection(("127.0.0.1", 19444), timeout=3), server_hostname="tg.example.org") as connection:
@@ -307,7 +294,8 @@ assert not os.access('/etc/solartt/tls/private.key',os.R_OK)
     finally:
         subprocess.run(["sudo", "systemctl", "stop", *services], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         cover.shutdown()
-        for process in (proxy, existing, official):
+        proxies.close()
+        for process in (official,):
             if process is None:
                 continue
             process.terminate()

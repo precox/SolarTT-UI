@@ -2,6 +2,7 @@
 """Package already-built binaries without installing or starting any service."""
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import tarfile
@@ -27,7 +28,8 @@ def main():
             copy(ROOT / "target/release" / binary, "usr/bin/" + binary, 0o755)
         for unit in (ROOT / "packaging/systemd").glob("*.service"):
             copy(unit, "usr/lib/systemd/system/" + unit.name)
-        for example in (ROOT / "examples").glob("*.toml"):
+        for example in sorted(list((ROOT / "examples").glob("*.toml")) +
+                              list((ROOT / "examples").glob("*.cfg"))):
             copy(example, "usr/share/doc/solartt-ui/examples/" + example.name)
         for source in (ROOT / "docs").glob("*.md"):
             copy(source, "usr/share/doc/solartt-ui/" + source.name)
@@ -39,13 +41,26 @@ def main():
         if not notices.is_dir():
             raise SystemExit("Run scripts/licenses.py before packaging")
         shutil.copytree(notices, tree / "usr/share/doc/solartt-ui/third-party")
+        # Derive the only optional native runtime dependency from actual ELF inputs.
+        # Unknown dependencies require review instead of silently producing a broken package.
+        native_libraries = set()
+        for binary in ("solartt-agent", "solartt-panel", "solartt-admin"):
+            dynamic = subprocess.check_output(["readelf", "-d", str(tree / "usr/bin" / binary)], text=True)
+            native_libraries.update(re.findall(r"\(NEEDED\).*?\[(.*?)\]", dynamic))
+        permitted = {"libc.so.6", "libgcc_s.so.1", "libm.so.6", "libpthread.so.0", "libdl.so.2",
+                     "librt.so.1", "ld-linux-x86-64.so.2", "libstdc++.so.6"}
+        if native_libraries - permitted:
+            raise SystemExit("Unreviewed ELF runtime libraries: " + str(sorted(native_libraries - permitted)))
+        dependencies = "adduser, ca-certificates, libc6 (>= 2.39), libgcc-s1"
+        if "libstdc++.so.6" in native_libraries:
+            dependencies += ", libstdc++6"
         control = tree / "DEBIAN"
         control.mkdir()
         (control / "control").write_text(f"""Package: solartt-ui
 Version: {deb_version}
 Architecture: amd64
 Maintainer: SolarTT-UI contributors <noreply@github.com>
-Depends: adduser, ca-certificates, libc6 (>= 2.39), libgcc-s1
+Depends: {dependencies}
 Section: net
 Priority: optional
 Homepage: https://github.com/precox/SolarTT-UI
