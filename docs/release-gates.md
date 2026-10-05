@@ -10,7 +10,7 @@
 - [x] Quota survives crashes; uncertainty is bounded and documented.
 - [x] Calendar periods, manual resets, limit changes and timezone behavior tested.
 - [x] Private destinations, metadata, local/own IPs and DNS results denied.
-- [ ] Panel login, rate limits, CSRF, XSS, secret exports and UDS permissions tested.
+- [x] Panel login, rate limits, CSRF, XSS, secret exports and UDS permissions tested.
 - [ ] Database migrations, backup and restore tested.
 - [ ] Fresh VM install/upgrade/uninstall preserves unrelated services.
 - [x] CA verification, SNI passthrough, cover HTTP and TLS renewal tested.

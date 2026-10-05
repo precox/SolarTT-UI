@@ -9,9 +9,11 @@ No production endpoint or network configuration was changed.
 cargo test --locked -p solartt-control-api -p solartt-policy -p solartt-profile-export -p solartt-panel -p solartt-admin --jobs 1
 ```
 
-25 tests passed: control API 2, policy/calendar/restore 19, panel 3,
+Initial 25 tests passed: control API 2, policy/calendar/restore 19, panel 3,
 profile export 1. Admin operations are exercised through policy library tests.
-Formatting checks and Clippy with warnings denied also passed locally.
+Formatting checks and Clippy with warnings denied also passed locally. The
+updated policy suite later passed all 20 tests, including separate live sessions
+sharing one quota and atomic schema initialization.
 
 Coverage includes shared concurrent quotas, partial writes and drop refunds,
 unknown cancelled writes, lowered limits across restart, clean shutdown,
@@ -23,8 +25,8 @@ export roundtrips through the pinned official deep-link codec.
 
 ## CI verification
 
-Full workflow passed for commit `29b8de9b8ecd6a0f3e0ccda1cad46a1dcc7ac122`,
-[Actions run 37282009229](https://github.com/precox/SolarTT-UI/actions/runs/37282009229).
+Full workflow passed for commit `6f42ef3291ba82692d513da4c6299db3f4663137`,
+[Actions run 37284404437](https://github.com/precox/SolarTT-UI/actions/runs/37284404437).
 It passed 26 portable tests, four managed transport tests and 92 upstream tests.
 The additional calendar test prevents a manually selected future month from
 blocking automatic rollover or refunding its consumed allowance.
@@ -54,18 +56,30 @@ passed in the recorded full workflow. This is a development artifact, not a
 production installation or stable release.
 
 297 dependency notice sets were collected without missing files/metadata. The
-artifact includes their provenance, package checksums and an explicitly invoked
-release measurement fixture. The first serial TCP measurement was affected by
-Nagle/delayed ACK in the test sockets; a follow-up enables TCP_NODELAY there.
-UDP completed 1,000 serial 1,200-byte echoes without loss. The durable 256 KiB
-lease grant averaged 0.442 ms including task scheduling. Process RSS was about
-17.2 MiB, including the in-process client and echo servers. These values describe
-this fixture on this runner, not server capacity or a load test.
+artifact includes their provenance, package checksums, a screenshot containing
+synthetic fixture users only, and an explicitly invoked release measurement.
+After enabling TCP_NODELAY on the fixture sockets, run 37283787988 measured:
+
+- 32 MiB upload echoed back: 131 MiB/s combined bidirectional payload on loopback.
+- Process CPU time for that exchange: 0.645 s; two runtime workers.
+- 1,000 serial 1,200-byte UDP echoes: no loss, 0.144 s total.
+- Durable 256 KiB lease admission: 0.440 ms mean, including task scheduling.
+- Process RSS: 17.25 MiB, including the client and both echo servers.
+
+These values describe this fixture on this runner, not server capacity or a
+sustained load test. The first TCP sample used Nagle-enabled test sockets and
+is not used for throughput conclusions. Raw samples are retained in the artifact.
+
+The installed panel also passed real headless Chrome checks: login, creating a
+user, issuing and exporting its credential, local QR, clearing exported secrets,
+rendering an HTML-looking label as text, and logout. IPC checks deny unrelated
+filesystem users and unlisted peer UIDs; the panel account cannot read the agent's
+master key or TLS private key. No real credentials are used in these fixtures.
 
 ## Still required before a stable v0.1 release
 
-Android interoperability with the managed build, browser interaction/security
-checks, operational ACME renewal, upgrade between distinct versions, dependency
+Android interoperability with the managed build, operational ACME renewal,
+upgrade between distinct versions, dependency
 license obligation review, sustained load/resource limits and measurements on
 the intended node. The release checklist remains unchecked where the full requirement
 has not been verified.
