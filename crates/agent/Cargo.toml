@@ -21,8 +21,8 @@ log = "0.4"
 
 [dev-dependencies]
 tempfile = "3"
-h2 = "0.3"
-http = "0.2"
+h2 = "0.4.16"
+http = "1"
 bytes = "1"
 base64.workspace = true
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }

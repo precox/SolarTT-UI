@@ -1,0 +1,9 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Reviewed false positive: Rust workspace crate path, never a credential"
+condition = "AND"
+paths = ['''(^|/)Cargo\.toml$''']
+regexTarget = "secret"
+regexes = ['''^crates/policy$''']

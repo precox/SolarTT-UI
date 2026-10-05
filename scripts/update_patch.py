@@ -12,7 +12,8 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-FILES = ["lib/src/lib.rs", "lib/src/core.rs", "lib/src/managed.rs",
+FILES = ["lib/Cargo.toml", "lib/src/http2_codec.rs", "lib/src/http_codec.rs",
+         "lib/src/http_downstream.rs", "lib/src/lib.rs", "lib/src/core.rs", "lib/src/managed.rs",
          "lib/src/tunnel.rs", "lib/src/pipe.rs", "lib/src/udp_pipe.rs",
          "lib/src/tcp_forwarder.rs", "lib/src/udp_forwarder.rs"]
 

@@ -17,6 +17,11 @@ StateDirectory=solartt
 StateDirectoryMode=0700
 RuntimeDirectory=solartt
 RuntimeDirectoryMode=0750
+# Contain resource exhaustion within this service; tune after measured load tests.
+MemoryHigh=384M
+MemoryMax=512M
+TasksMax=128
+LimitNOFILE=4096
 NoNewPrivileges=true
 CapabilityBoundingSet=
 AmbientCapabilities=

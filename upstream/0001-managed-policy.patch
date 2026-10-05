@@ -1,3 +1,163 @@
+diff --git a/lib/Cargo.toml b/lib/Cargo.toml
+--- a/lib/Cargo.toml
++++ b/lib/Cargo.toml
+@@ -20,7 +20,8 @@
+ chrono = { version = "0.4.26", default-features = false, features = ["clock"] }
+ dynfmt = { version = "0.1.5", features = ["curly"], default-features = false }
+ futures = "0.3.28"
+-h2 = "0.3.26"
++h2 = "0.4.16"
++http1 = { package = "http", version = "1" }
+ hex = "0.4.3"
+ http = "0.2.9"
+ httparse = "1.8.0"
+diff --git a/lib/src/http2_codec.rs b/lib/src/http2_codec.rs
+--- a/lib/src/http2_codec.rs
++++ b/lib/src/http2_codec.rs
+@@ -101,6 +101,7 @@
+         match session.accept().await {
+             Some(Ok((request, respond))) => {
+                 let (request, rx) = request.into_parts();
++                let request = legacy_request(request)?;
+                 let id = self.parent_id_chain.extended(log_utils::IdItem::new(
+                     log_utils::CONNECTION_ID_FMT,
+                     self.next_conn_id.next().unwrap(),
+@@ -288,7 +289,7 @@
+ 
+         let tx = self
+             .tx
+-            .send_response(http::Response::from_parts(response, ()), eof)
++            .send_response(current_response(response)?, eof)
+             .map_err(h2_to_io_error)?;
+ 
+         log_id!(trace, self.id, "H2 response sent successfully");
+@@ -389,3 +390,89 @@
+     e.into_io()
+         .unwrap_or_else(|| io::Error::other(format!("HTTP2 error: {:?}", reason)))
+ }
++
++// Keep the upstream HTTP/1 and forwarding API stable while using maintained h2/http.
++// Copy raw header values and append each occurrence, including duplicate headers.
++fn legacy_request(parts: http1::request::Parts) -> io::Result<RequestHeaders> {
++    let mut request = http::Request::new(()).into_parts().0;
++    request.method = http::Method::from_bytes(parts.method.as_str().as_bytes())
++        .map_err(|_| io::Error::other("Invalid H2 method"))?;
++    request.uri = parts
++        .uri
++        .to_string()
++        .parse()
++        .map_err(|_| io::Error::other("Invalid H2 URI"))?;
++    request.version = http::Version::HTTP_2;
++    for (name, value) in &parts.headers {
++        request.headers.append(
++            http::header::HeaderName::from_bytes(name.as_str().as_bytes())
++                .map_err(|_| io::Error::other("Invalid H2 header name"))?,
++            http::HeaderValue::from_bytes(value.as_bytes())
++                .map_err(|_| io::Error::other("Invalid H2 header value"))?,
++        );
++    }
++    Ok(request)
++}
++fn current_response(parts: ResponseHeaders) -> io::Result<http1::Response<()>> {
++    let mut response = http1::Response::new(());
++    *response.status_mut() = http1::StatusCode::from_u16(parts.status.as_u16())
++        .map_err(|_| io::Error::other("Invalid H2 response status"))?;
++    *response.version_mut() = http1::Version::HTTP_2;
++    for (name, value) in &parts.headers {
++        response.headers_mut().append(
++            http1::header::HeaderName::from_bytes(name.as_str().as_bytes())
++                .map_err(|_| io::Error::other("Invalid H2 response header name"))?,
++            http1::HeaderValue::from_bytes(value.as_bytes())
++                .map_err(|_| io::Error::other("Invalid H2 response header value"))?,
++        );
++    }
++    Ok(response)
++}
++
++#[cfg(test)]
++mod compatibility_tests {
++    use super::*;
++    #[test]
++    fn h2_bridge_preserves_method_uri_status_and_duplicate_binary_headers() {
++        let mut input = http1::Request::builder()
++            .method("CONNECT")
++            .uri("example.org:443")
++            .body(())
++            .unwrap();
++        for value in [b"first".as_slice(), &[0x80, 0xff]] {
++            input
++                .headers_mut()
++                .append("x-fixture", http1::HeaderValue::from_bytes(value).unwrap());
++        }
++        let request = legacy_request(input.into_parts().0).unwrap();
++        assert_eq!(request.method, http::Method::CONNECT);
++        assert_eq!(request.uri.authority().unwrap().as_str(), "example.org:443");
++        assert_eq!(request.version, http::Version::HTTP_2);
++        let values: Vec<_> = request
++            .headers
++            .get_all("x-fixture")
++            .iter()
++            .map(|v| v.as_bytes())
++            .collect();
++        assert_eq!(values, vec![b"first".as_slice(), &[0x80, 0xff]]);
++        let mut output = http::Response::builder().status(407).body(()).unwrap();
++        for value in request.headers.get_all("x-fixture").iter() {
++            output.headers_mut().append("x-fixture", value.clone());
++        }
++        let response = current_response(output.into_parts().0).unwrap();
++        assert_eq!(
++            response.status(),
++            http1::StatusCode::PROXY_AUTHENTICATION_REQUIRED
++        );
++        assert_eq!(response.version(), http1::Version::HTTP_2);
++        assert_eq!(
++            response
++                .headers()
++                .get_all("x-fixture")
++                .iter()
++                .map(|v| v.as_bytes())
++                .collect::<Vec<_>>(),
++            values
++        );
++    }
++}
+diff --git a/lib/src/http_codec.rs b/lib/src/http_codec.rs
+--- a/lib/src/http_codec.rs
++++ b/lib/src/http_codec.rs
+@@ -73,10 +73,12 @@
+ 
+     /// Get the request authority
+     fn authority(&self) -> io::Result<&Authority> {
+-        self.request()
+-            .uri
+-            .authority()
+-            .ok_or_else(|| io::Error::other(format!("Authority not found: {:?}", self.request())))
++        self.request().uri.authority().ok_or_else(|| {
++            io::Error::other(format!(
++                "Authority not found: {:?}",
++                net_utils::scrub_request(self.request())
++            ))
++        })
+     }
+ 
+     /// Get the user agent
+diff --git a/lib/src/http_downstream.rs b/lib/src/http_downstream.rs
+--- a/lib/src/http_downstream.rs
++++ b/lib/src/http_downstream.rs
+@@ -279,7 +279,12 @@
+                 ))
+             }
+             Some(HEALTH_CHECK_AUTHORITY) | Some(UDP_AUTHORITY) | Some(ICMP_AUTHORITY) => {
+-                log_id!(debug, self.id, "Unexpected request method: {:?}", request);
++                log_id!(
++                    debug,
++                    self.id,
++                    "Unexpected request method: {:?}",
++                    net_utils::scrub_request(request)
++                );
+                 fail_request(self.stream, BAD_STATUS_CODE, vec![]);
+                 Ok(None)
+             }
 diff --git a/lib/src/lib.rs b/lib/src/lib.rs
 --- a/lib/src/lib.rs
 +++ b/lib/src/lib.rs
@@ -12,16 +172,18 @@ diff --git a/lib/src/lib.rs b/lib/src/lib.rs
 diff --git a/lib/src/core.rs b/lib/src/core.rs
 --- a/lib/src/core.rs
 +++ b/lib/src/core.rs
-@@ -72,6 +72,8 @@
+@@ -72,6 +72,10 @@
  pub(crate) struct Context {
      pub settings: Arc<Settings>,
      pub authenticator: Option<Arc<dyn authentication::Authenticator>>,
 +    pub managed_policy: Option<Arc<dyn crate::managed::Policy>>,
 +    managed_slots: Option<Arc<tokio::sync::Semaphore>>,
++    pub managed_tcp_slots: Option<Arc<tokio::sync::Semaphore>>,
++    pub managed_udp_slots: Option<Arc<tokio::sync::Semaphore>>,
      tls_demux: Arc<RwLock<TlsDemux>>,
      pub icmp_forwarder: Option<Arc<IcmpForwarder>>,
      pub shutdown: Arc<Mutex<Shutdown>>,
-@@ -105,6 +107,41 @@
+@@ -105,6 +109,41 @@
          tls_hosts_settings: settings::TlsHostsSettings,
          shutdown: Arc<Mutex<Shutdown>>,
      ) -> Result<Self, Error> {
@@ -63,13 +225,19 @@ diff --git a/lib/src/core.rs b/lib/src/core.rs
          if !settings.is_built() {
              settings.validate().map_err(Error::SettingsValidation)?;
          }
-@@ -114,16 +151,20 @@
+@@ -114,16 +153,26 @@
                  .map_err(Error::SettingsValidation)?;
          }
  
 +        let managed_slots = managed_policy
 +            .as_ref()
 +            .map(|_| Arc::new(tokio::sync::Semaphore::new(128)));
++        let managed_tcp_slots = managed_policy
++            .as_ref()
++            .map(|_| Arc::new(tokio::sync::Semaphore::new(1024)));
++        let managed_udp_slots = managed_policy
++            .as_ref()
++            .map(|_| Arc::new(tokio::sync::Semaphore::new(1024)));
          let settings = Arc::new(settings);
  
          let (fatal_error, _fatal_error_rx) = watch::channel(None);
@@ -90,16 +258,18 @@ diff --git a/lib/src/core.rs b/lib/src/core.rs
          {
              Some(Arc::new(ConnectionLimiter::new(
                  &settings.clients,
-@@ -144,6 +185,8 @@
+@@ -144,6 +193,10 @@
              context: Arc::new(Context {
                  settings: settings.clone(),
                  authenticator,
 +                managed_policy,
 +                managed_slots,
++                managed_tcp_slots,
++                managed_udp_slots,
                  tls_demux: Arc::new(RwLock::new(
                      TlsDemux::new(&settings, &tls_hosts_settings)
                          .map_err(|e| Error::TlsDemultiplexer(e.to_string()))?,
-@@ -292,10 +335,18 @@
+@@ -292,10 +345,18 @@
                  }
              };
  
@@ -118,12 +288,14 @@ diff --git a/lib/src/core.rs b/lib/src/core.rs
                      log_id!(trace, client_id, "Starting TLS handshake");
                      let handshake_timeout = context.settings.tls_handshake_timeout;
                      match tokio::time::timeout(handshake_timeout, tls_listener.listen(stream))
-@@ -804,6 +855,8 @@
+@@ -804,6 +865,10 @@
          Self {
              settings: settings.clone(),
              authenticator: None,
 +            managed_policy: None,
 +            managed_slots: None,
++            managed_tcp_slots: None,
++            managed_udp_slots: None,
              tls_demux: Arc::new(RwLock::new(
                  TlsDemux::new(&settings, &settings::TlsHostsSettings::default()).unwrap(),
              )),
@@ -512,7 +684,37 @@ diff --git a/lib/src/udp_pipe.rs b/lib/src/udp_pipe.rs
                      log_id!(trace, self.source.id(), "--> Datagram dropped")
                  }
              }
-@@ -145,13 +160,27 @@
+@@ -95,6 +110,17 @@
+         }
+ 
+         let is_plain_dns = meta.destination.port() == net_utils::PLAIN_DNS_PORT_NUMBER;
++        // Bound both the metadata map and the forwarder's readiness polling work.
++        // Failed admission must never leave a phantom entry which can be reused.
++        if self.shared.managed_session.is_some()
++            && self.shared.udp_connections.lock().unwrap().len() >= 256
++        {
++            return Err(io::Error::other("Managed UDP flow limit exceeded"));
++        }
++        self.shared
++            .forwarder_shared
++            .on_new_udp_connection(meta)
++            .await?;
+         self.shared.udp_connections.lock().unwrap().insert(
+             forwarder::UdpDatagramMeta::from(meta),
+             UdpConnection {
+@@ -106,11 +132,6 @@
+                 )),
+             },
+         );
+-
+-        self.shared
+-            .forwarder_shared
+-            .on_new_udp_connection(meta)
+-            .await?;
+ 
+         if let Some(c) = self
+             .shared
+@@ -145,13 +166,27 @@
              };
              log_id!(trace, self.source.id(), "<-- Datagram: {:?}", datagram);
  
@@ -540,7 +742,7 @@ diff --git a/lib/src/udp_pipe.rs b/lib/src/udp_pipe.rs
                      log_id!(trace, self.source.id(), "<-- Datagram dropped")
                  }
              }
-@@ -226,6 +255,7 @@
+@@ -226,6 +261,7 @@
              udp_connections: Mutex::new(Default::default()),
              forwarder_shared: shared2,
              update_metrics,
@@ -548,7 +750,7 @@ diff --git a/lib/src/udp_pipe.rs b/lib/src/udp_pipe.rs
          });
  
          Self {
-@@ -255,6 +285,21 @@
+@@ -255,6 +291,21 @@
              Ok(_) => Ok(()),
              Err(Either::Left((e, _))) | Err(Either::Right((e, _))) => Err(e),
          }
@@ -570,7 +772,7 @@ diff --git a/lib/src/udp_pipe.rs b/lib/src/udp_pipe.rs
      }
  
      fn on_timer_tick(&mut self) {
-@@ -454,3 +499,15 @@
+@@ -454,3 +505,15 @@
          );
      }
  }
@@ -589,7 +791,52 @@ diff --git a/lib/src/udp_pipe.rs b/lib/src/udp_pipe.rs
 diff --git a/lib/src/tcp_forwarder.rs b/lib/src/tcp_forwarder.rs
 --- a/lib/src/tcp_forwarder.rs
 +++ b/lib/src/tcp_forwarder.rs
-@@ -87,6 +87,15 @@
+@@ -23,6 +23,7 @@
+     rx: OwnedReadHalf,
+     id: log_utils::IdChain<u64>,
+     _metrics_guard: OutboundTcpSocketCounter,
++    _managed_slot: Option<Arc<tokio::sync::OwnedSemaphorePermit>>,
+ }
+ 
+ struct StreamTx {
+@@ -33,6 +34,7 @@
+     /// golang https://github.com/golang/go/issues/18527.
+     eof_pending: bool,
+     id: log_utils::IdChain<u64>,
++    _managed_slot: Option<Arc<tokio::sync::OwnedSemaphorePermit>>,
+ }
+ 
+ impl TcpForwarder {
+@@ -59,17 +61,28 @@
+         id: log_utils::IdChain<u64>,
+         metrics_guard: OutboundTcpSocketCounter,
+     ) -> (Box<dyn pipe::Source>, Box<dyn pipe::Sink>) {
++        Self::pipe_with_slot(stream, id, metrics_guard, None)
++    }
++
++    fn pipe_with_slot(
++        stream: TcpStream,
++        id: log_utils::IdChain<u64>,
++        metrics_guard: OutboundTcpSocketCounter,
++        slot: Option<Arc<tokio::sync::OwnedSemaphorePermit>>,
++    ) -> (Box<dyn pipe::Source>, Box<dyn pipe::Sink>) {
+         let (rx, tx) = stream.into_split();
+         (
+             Box::new(StreamRx {
+                 rx,
+                 id: id.clone(),
+                 _metrics_guard: metrics_guard,
++                _managed_slot: slot.clone(),
+             }),
+             Box::new(StreamTx {
+                 tx,
+                 eof_pending: false,
+                 id,
++                _managed_slot: slot,
+             }),
+         )
+     }
+@@ -87,6 +100,15 @@
          let peer = match meta.destination {
              TcpDestination::Address(peer) => {
                  let peer_ip = peer.ip();
@@ -605,7 +852,7 @@ diff --git a/lib/src/tcp_forwarder.rs b/lib/src/tcp_forwarder.rs
                  if !allow_private_network && !net_utils::is_global_ip(&peer_ip) {
                      if peer_ip.is_loopback() {
                          return Err(tunnel::ConnectionError::DnsLoopback);
-@@ -116,6 +125,16 @@
+@@ -116,6 +138,16 @@
                          continue;
                      }
  
@@ -622,10 +869,91 @@ diff --git a/lib/src/tcp_forwarder.rs b/lib/src/tcp_forwarder.rs
                      if net_utils::is_global_ip(&ip) || allow_private_network {
                          status = Some(SelectionStatus::Suitable(a));
                          break;
+@@ -150,6 +182,19 @@
+         };
+ 
+         log_id!(trace, id, "Connecting to peer: {}", peer);
++        let slot = self
++            .context
++            .managed_tcp_slots
++            .as_ref()
++            .map(|slots| {
++                slots
++                    .clone()
++                    .try_acquire_owned()
++                    .map(Arc::new)
++                    .map_err(|_| io::Error::other("Managed TCP socket limit exceeded"))
++            })
++            .transpose()
++            .map_err(io_to_connection_error)?;
+         let metrics_guard = self.context.metrics.clone().outbound_tcp_socket_counter();
+         TcpStream::connect(peer)
+             .await
+@@ -166,7 +211,7 @@
+                         local_addr.port()
+                     );
+                 }
+-                TcpForwarder::pipe_from_stream(s, id, metrics_guard)
++                TcpForwarder::pipe_with_slot(s, id, metrics_guard, slot)
+             })
+             .map_err(io_to_connection_error)
+     }
+@@ -264,6 +309,43 @@
+     use super::*;
+     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV6};
+ 
++    #[tokio::test]
++    async fn managed_tcp_limit_is_held_until_both_socket_halves_drop() {
++        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
++        let mut context = core::Context::default();
++        Arc::get_mut(&mut context.settings)
++            .unwrap()
++            .allow_private_network_connections = true;
++        let slots = Arc::new(tokio::sync::Semaphore::new(1));
++        context.managed_tcp_slots = Some(slots.clone());
++        let context = Arc::new(context);
++        let meta = forwarder::TcpConnectionMeta {
++            client_address: "127.0.0.1".parse().unwrap(),
++            destination: TcpDestination::Address(listener.local_addr().unwrap()),
++            auth: None,
++            tls_domain: String::new(),
++            user_agent: None,
++        };
++        let (source, sink) = Box::new(TcpForwarder::new(context.clone()))
++            .connect(log_utils::IdChain::empty(), meta.clone())
++            .await
++            .unwrap();
++        assert_eq!(slots.available_permits(), 0);
++        assert!(Box::new(TcpForwarder::new(context.clone()))
++            .connect(log_utils::IdChain::empty(), meta.clone())
++            .await
++            .is_err());
++        drop(source);
++        assert_eq!(slots.available_permits(), 0);
++        drop(sink);
++        assert_eq!(slots.available_permits(), 1);
++        let _ = Box::new(TcpForwarder::new(context))
++            .connect(log_utils::IdChain::empty(), meta)
++            .await
++            .unwrap();
++        assert_eq!(slots.available_permits(), 1);
++    }
++
+     fn make_test_context_disallow_private_network() -> Arc<core::Context> {
+         let mut ctx = core::Context::default();
+         Arc::get_mut(&mut ctx.settings)
 diff --git a/lib/src/udp_forwarder.rs b/lib/src/udp_forwarder.rs
 --- a/lib/src/udp_forwarder.rs
 +++ b/lib/src/udp_forwarder.rs
-@@ -171,6 +171,17 @@
+@@ -18,6 +18,7 @@
+     socket: Arc<UdpSocket>,
+     being_listened: bool,
+     _metrics_guard: OutboundUdpSocketCounter,
++    _managed_slot: Option<tokio::sync::OwnedSemaphorePermit>,
+ }
+ 
+ type Connections = HashMap<forwarder::UdpDatagramMeta, Connection>;
+@@ -171,6 +172,17 @@
  impl forwarder::UdpDatagramPipeShared for MultiplexerShared {
      async fn on_new_udp_connection(&self, meta: &downstream::UdpDatagramMeta) -> io::Result<()> {
          let dest_ip = meta.destination.ip();
@@ -643,3 +971,69 @@ diff --git a/lib/src/udp_forwarder.rs b/lib/src/udp_forwarder.rs
          if !self.context.settings.allow_private_network_connections
              && !net_utils::is_global_ip(&dest_ip)
          {
+@@ -188,11 +200,23 @@
+         {
+             Entry::Occupied(_) => Err(io::Error::other("Already present")),
+             Entry::Vacant(e) => {
++                let slot = self
++                    .context
++                    .managed_udp_slots
++                    .as_ref()
++                    .map(|slots| {
++                        slots
++                            .clone()
++                            .try_acquire_owned()
++                            .map_err(|_| io::Error::other("Managed UDP socket limit exceeded"))
++                    })
++                    .transpose()?;
+                 let metrics_guard = self.context.metrics.clone().outbound_udp_socket_counter();
+                 e.insert(Connection {
+                     socket: Arc::new(make_udp_socket(&meta.destination)?),
+                     being_listened: false,
+                     _metrics_guard: metrics_guard,
++                    _managed_slot: slot,
+                 });
+                 Ok(())
+             }
+@@ -279,3 +303,41 @@
+     socket.set_nonblocking(true)?;
+     UdpSocket::from_std(socket)
+ }
++
++#[cfg(test)]
++mod managed_tests {
++    use super::*;
++    use crate::forwarder::UdpDatagramPipeShared;
++    #[tokio::test]
++    async fn managed_udp_limit_releases_on_close_and_failed_admission_has_no_entry() {
++        let mut context = core::Context::default();
++        Arc::get_mut(&mut context.settings)
++            .unwrap()
++            .allow_private_network_connections = true;
++        let slots = Arc::new(sync::Semaphore::new(1));
++        context.managed_udp_slots = Some(slots.clone());
++        let shared = MultiplexerShared {
++            connections: Mutex::new(Default::default()),
++            context: Arc::new(context),
++        };
++        let meta = downstream::UdpDatagramMeta {
++            source: "127.0.0.1:53000".parse().unwrap(),
++            destination: "127.0.0.1:53001".parse().unwrap(),
++            app_name: None,
++        };
++        shared.on_new_udp_connection(&meta).await.unwrap();
++        assert_eq!(slots.available_permits(), 0);
++        let second = downstream::UdpDatagramMeta {
++            source: "127.0.0.1:53002".parse().unwrap(),
++            destination: meta.destination,
++            app_name: None,
++        };
++        assert!(shared.on_new_udp_connection(&second).await.is_err());
++        assert_eq!(shared.connections.lock().unwrap().len(), 1);
++        shared.on_connection_closed(&forwarder::UdpDatagramMeta::from(&meta).reversed());
++        assert_eq!(slots.available_permits(), 1);
++        shared.on_new_udp_connection(&second).await.unwrap();
++        drop(shared);
++        assert_eq!(slots.available_permits(), 1);
++    }
++}

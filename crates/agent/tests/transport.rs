@@ -564,3 +564,30 @@ async fn measure_loopback_transport_and_durable_leases() {
         })
     );
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn udp_flow_limit_drops_new_flows_and_preserves_existing_tcp_and_udp() {
+    let fixture = Fixture::new().await;
+    let (_, _, basic) = account(&fixture.engine, "Flow cap", None).await;
+    let client = Client::connect(fixture.address, fixture.cert.clone()).await;
+    let (status, mut send, mut receive) = client.request("_udp2", &basic).await;
+    assert_eq!(status, http::StatusCode::OK);
+    for index in 0..256u16 {
+        let mut frame = udp_frame(fixture.udp, b"flow").to_vec();
+        frame[20..22].copy_from_slice(&(53000 + index).to_be_bytes());
+        send.send_data(Bytes::from(frame), false).unwrap();
+        assert_eq!(&payload(&mut receive, 44).await[40..], b"flow");
+    }
+    let mut denied = udp_frame(fixture.udp, b"deny").to_vec();
+    denied[20..22].copy_from_slice(&54000u16.to_be_bytes());
+    send.send_data(Bytes::from(denied.clone()), false).unwrap();
+    send.send_data(Bytes::from(denied), false).unwrap();
+    send.send_data(udp_frame(fixture.udp, b"live"), false)
+        .unwrap();
+    assert_eq!(&payload(&mut receive, 44).await[40..], b"live");
+    assert_eq!(fixture.udp_peers.lock().unwrap().len(), 257);
+    let (status, mut tx, mut rx) = client.request(&fixture.tcp.to_string(), &basic).await;
+    assert_eq!(status, http::StatusCode::OK);
+    tx.send_data(Bytes::from_static(b"tcp"), false).unwrap();
+    assert_eq!(payload(&mut rx, 3).await, b"tcp");
+}

@@ -58,6 +58,13 @@ caps, not measured capacity or throughput guarantees. The legacy static-client
 connection limiter is bypassed in managed mode; the policy engine owns dynamic
 user limits. Legacy mode retains its existing limiter behavior.
 
+Managed forwarding also caps 256 flows per UDP multiplexer and 1024 TCP plus
+1024 UDP outbound sockets globally. TCP socket permits survive until both halves
+are dropped; UDP permits are released with their socket. Existing UDP flows keep
+working when new-flow admission is full. These global caps do not promise fair
+allocation between users. Packaged systemd units additionally contain memory,
+tasks and file descriptors; tune their limits using measured workloads.
+
 ## Control boundary
 
 Control API v1 uses one bounded JSON frame per Unix connection, peer UID checks,
