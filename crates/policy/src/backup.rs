@@ -1,5 +1,5 @@
 //! Host administrator utilities. Backups contain encrypted credentials and remain private.
-use crate::{Engine, Error};
+use crate::{Engine, Error, RetentionPolicy};
 use rusqlite::{Connection, DatabaseName, OpenFlags};
 use std::{fs::File, path::Path};
 
@@ -33,7 +33,7 @@ fn source(path: &Path) -> Result<Connection, Error> {
         OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
     )?;
     let version: u32 = db.query_row("SELECT version FROM schema_version", [], |r| r.get(0))?;
-    if version != 1 {
+    if !matches!(version, 1 | 2) {
         return Err(Error::Invalid("Unsupported database schema"));
     }
     let check: String = db.query_row("PRAGMA integrity_check", [], |r| r.get(0))?;
@@ -65,6 +65,14 @@ pub fn backup_database(database: &Path, destination: &Path) -> Result<(), Error>
 /// Restore into a new path only. Validate the matching key before publishing
 /// the snapshot. Replacing a live or existing database is intentionally refused.
 pub fn restore_database(backup: &Path, key: [u8; 32], destination: &Path) -> Result<(), Error> {
+    restore_with_retention(backup, key, destination, RetentionPolicy::default())
+}
+pub fn restore_with_retention(
+    backup: &Path,
+    key: [u8; 32],
+    destination: &Path,
+    retention: RetentionPolicy,
+) -> Result<(), Error> {
     private_parent(destination)?;
     if std::fs::symlink_metadata(destination).is_ok() {
         return Err(Error::Invalid("Restore destination already exists"));
@@ -82,7 +90,31 @@ pub fn restore_database(backup: &Path, key: [u8; 32], destination: &Path) -> Res
         r.get::<_, String>(0)
     })?;
     let document: crate::Document = serde_json::from_str(&timezone)?;
-    let engine = Engine::open_in_timezone(&staged, key, &document.timezone)?;
+    let engine = Engine::open_with_retention(&staged, key, &document.timezone, retention)?;
     drop(engine);
     backup_database(&staged, destination)
+}
+
+/// Validate a consistent private staging copy. Checking a schema-1 database must
+/// not migrate the caller's source, even when the new engine supports migration.
+pub fn check_database(
+    database: &Path,
+    key: [u8; 32],
+    timezone: &str,
+    retention: RetentionPolicy,
+) -> Result<(u32, u64), Error> {
+    let db = source(database)?;
+    let schema = db.query_row("SELECT version FROM schema_version", [], |r| r.get(0))?;
+    drop(db);
+    let parent = database.parent().unwrap_or(Path::new("."));
+    let staging = tempfile::Builder::new()
+        .permissions({
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::Permissions::from_mode(0o700)
+        })
+        .tempdir_in(parent)?;
+    let staged = staging.path().join("check.sqlite");
+    backup_database(database, &staged)?;
+    let engine = Engine::open_with_retention(&staged, key, timezone, retention)?;
+    Ok((schema, engine.revision()))
 }

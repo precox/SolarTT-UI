@@ -3,7 +3,7 @@ use serde::Deserialize;
 use solartt_control_api::{
     Command, Info, Request, Response, ResultData, API_VERSION, MAX_FRAME_BYTES,
 };
-use solartt_policy::Engine;
+use solartt_policy::{Engine, RetentionPolicy};
 use std::{
     io,
     path::{Path, PathBuf},
@@ -38,6 +38,8 @@ struct Config {
     period_timezone: String,
     #[serde(default)]
     denied_addresses: Vec<std::net::IpAddr>,
+    #[serde(default)]
+    retention: RetentionPolicy,
 }
 fn default_timezone() -> String {
     "UTC".into()
@@ -93,7 +95,7 @@ fn load_tls(config: &Config) -> io::Result<TlsHostsSettings> {
     toml::from_str(&std::fs::read_to_string(&config.tls_hosts)?)
         .map_err(|_| io::Error::other("Invalid TLS hosts settings"))
 }
-async fn process(req: Request, engine: Arc<Engine>, config: &Config) -> Response {
+async fn process(req: Request, engine: Arc<Engine>, config: &Config, actor_uid: u32) -> Response {
     let id = req.request_id.clone();
     let result = match &req.command {
         Command::Info => ResultData::Info {
@@ -111,10 +113,13 @@ async fn process(req: Request, engine: Arc<Engine>, config: &Config) -> Response
                     "manual_periods".into(),
                     "calendar_periods".into(),
                     "audit".into(),
+                    "audited_profile_export".into(),
+                    "bounded_storage".into(),
                     "tls_reload_signal".into(),
                 ],
                 readiness: true,
                 period_timezone: engine.period_timezone().into(),
+                storage: engine.storage_info().ok(),
             },
         },
         Command::Users { after } => {
@@ -149,19 +154,26 @@ async fn process(req: Request, engine: Arc<Engine>, config: &Config) -> Response
             },
         },
         Command::ExportProfile { credential_id } => {
+            let export_config = config.clone();
             match engine
-                .export_credential(credential_id)
-                .and_then(|(username, password, label)| {
-                    solartt_profile_export::export(
-                        &config.hostname,
-                        &config.address,
-                        &username,
-                        password.as_str(),
-                        &label,
-                        config.dns_upstreams.clone(),
-                    )
-                    .map_err(|_| solartt_policy::Error::Invalid("Profile export failed"))
-                }) {
+                .export_audited(
+                    req.request_id.clone(),
+                    credential_id.clone(),
+                    actor_uid,
+                    move |username, password, label| {
+                        solartt_profile_export::export(
+                            &export_config.hostname,
+                            &export_config.address,
+                            username,
+                            password,
+                            label,
+                            export_config.dns_upstreams.clone(),
+                        )
+                        .map_err(|_| solartt_policy::Error::Invalid("Profile export failed"))
+                    },
+                )
+                .await
+            {
                 Ok(p) => ResultData::Profile {
                     deeplink: p.deeplink,
                     toml: p.toml,
@@ -173,7 +185,7 @@ async fn process(req: Request, engine: Arc<Engine>, config: &Config) -> Response
                 },
             }
         }
-        _ => match engine.apply(req).await {
+        _ => match engine.apply_as(req, actor_uid).await {
             Ok((m, true)) => ResultData::Applied {
                 resource_id: m.resource_id,
             },
@@ -187,6 +199,11 @@ async fn process(req: Request, engine: Arc<Engine>, config: &Config) -> Response
                 code: match e {
                     solartt_policy::Error::RevisionConflict => "revision_conflict",
                     solartt_policy::Error::IdempotencyConflict => "idempotency_conflict",
+                    solartt_policy::Error::RequestExpired => "request_expired",
+                    solartt_policy::Error::PeriodLimit => "period_limit",
+                    solartt_policy::Error::StoragePressure | solartt_policy::Error::Storage(_) => {
+                        "storage_unavailable"
+                    }
                     _ => "mutation_failed",
                 }
                 .into(),
@@ -223,7 +240,7 @@ async fn serve(stream: UnixStream, engine: Arc<Engine>, config: Config) -> io::R
     if !solartt_control_api::validate_request_id(&req.request_id) {
         return Err(io::ErrorKind::InvalidData.into());
     }
-    let response = process(req, engine, &config).await;
+    let response = process(req, engine, &config, uid).await;
     let mut bytes = serde_json::to_vec(&response).map_err(|_| io::ErrorKind::InvalidData)?;
     bytes.push(b'\n');
     if bytes.len() > MAX_FRAME_BYTES {
@@ -295,7 +312,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config_path = args
         .first()
         .ok_or("Usage: solartt-agent CONFIG.toml | --init-key PATH | --version")?;
-    let config: Config = toml::from_str(&std::fs::read_to_string(config_path)?)?;
+    let config: Config = toml::from_str(&std::fs::read_to_string(config_path)?)
+        .map_err(|_| "Invalid agent configuration")?;
     if config.hostname.is_empty() || config.address.is_empty() {
         return Err("Profile hostname and address are required".into());
     }
@@ -303,7 +321,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let key: [u8; 32] = private_file(&config.encryption_key)?
         .try_into()
         .map_err(|_| "Encryption key must be exactly 32 bytes")?;
-    let engine = Engine::open_in_timezone(&config.database, key, &config.period_timezone)?;
+    let engine = Engine::open_with_retention(
+        &config.database,
+        key,
+        &config.period_timezone,
+        config.retention.clone(),
+    )?;
     let mut denied_addresses = solartt_agent::local_addresses()?;
     denied_addresses.extend(config.denied_addresses.iter().copied());
     if let Ok(address) = config.address.parse::<std::net::SocketAddr>() {
@@ -334,9 +357,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 e.reconcile_applied();
                 count += 1;
+                if count % 60 == 0 {
+                    let e = e.clone();
+                    if !matches!(
+                        tokio::task::spawn_blocking(move || e.maintain_storage()).await,
+                        Ok(Ok(()))
+                    ) {
+                        eprintln!(
+                            "Storage retention pending; retrying without deleting quota history"
+                        );
+                    }
+                }
                 if count % 5 == 0 {
                     let e = e.clone();
-                    let _ = tokio::task::spawn_blocking(move || e.checkpoint()).await;
+                    if !matches!(
+                        tokio::task::spawn_blocking(move || e.checkpoint()).await,
+                        Ok(Ok(()))
+                    ) {
+                        eprintln!(
+                            "Storage checkpoint failed; durable quota grants remain enforced"
+                        );
+                    }
                 }
             }
         }

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.0-alpha.2 — unreleased
+
+- Durably audited profile preparation/denial with trusted peer UID and secret-free metadata.
+- Count/age retention for audit and retry records; expired retries fail without reapplying policy.
+- Preserved quota history with bounded period creation, SQLite page and WAL admission limits.
+- Storage status and caller/profile identifiers in the panel.
+- Schema-1 to schema-2 migration after key/credential validation; readonly staging checks.
+- SQLite-full, checkpoint/restart, pinned-reader, retry and migration regressions.
+
+See [storage and audit semantics](docs/storage-and-audit.md). Preserve a compatible
+snapshot before upgrading; alpha.1 cannot read schema 2. This is development code.
+
 ## 0.1.0-alpha.1 — unreleased
 
 - Independent Rust agent, browser panel and host administration utility.

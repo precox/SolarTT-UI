@@ -1,6 +1,10 @@
 //! Durable access policy. No network or database I/O in authentication.
 pub mod backup;
 mod calendar;
+mod retention;
+#[cfg(test)]
+mod storage_tests;
+pub use retention::RetentionPolicy;
 mod store;
 use base64::{
     engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
@@ -43,6 +47,12 @@ pub enum Error {
     RevisionConflict,
     #[error("Request ID was reused for a different operation")]
     IdempotencyConflict,
+    #[error("Request receipt expired; inspect current policy before issuing a new operation")]
+    RequestExpired,
+    #[error("Historical period limit reached; existing quota history is preserved")]
+    PeriodLimit,
+    #[error("Storage is under pressure; new durable writes are unavailable")]
+    StoragePressure,
     #[error("Secret protection failed")]
     Crypto,
     #[error("Access denied")]
@@ -181,10 +191,18 @@ impl Engine {
         key: [u8; 32],
         timezone: &str,
     ) -> Result<Arc<Self>, Error> {
+        Self::open_with_retention(database, key, timezone, RetentionPolicy::default())
+    }
+    pub fn open_with_retention(
+        database: &Path,
+        key: [u8; 32],
+        timezone: &str,
+        retention: RetentionPolicy,
+    ) -> Result<Arc<Self>, Error> {
         let zone: chrono_tz::Tz = timezone
             .parse()
             .map_err(|_| Error::Invalid("Unknown period timezone"))?;
-        let mut store = store::Store::open(database)?;
+        let mut store = store::Store::open(database, retention)?;
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -234,6 +252,11 @@ impl Engine {
             timezone: zone,
         });
         engine.refresh_auth()?;
+        {
+            let mut persistent = engine.persistent.lock().unwrap();
+            let document = persistent.document.clone();
+            persistent.store.prepare(&document)?;
+        }
         Ok(engine)
     }
     pub fn period_timezone(&self) -> &str {
@@ -433,7 +456,79 @@ impl Engine {
         }
         Err(Error::NotFound)
     }
-    fn mutate(&self, request: &Request) -> Result<Mutation, Error> {
+    /// Record preparation (or denial) durably before a secret-bearing result leaves the engine.
+    /// The caller UID is supplied by the peer credential check, never from JSON.
+    pub async fn export_audited<T, F>(
+        self: &Arc<Self>,
+        request_id: String,
+        credential_id: String,
+        actor_uid: u32,
+        build: F,
+    ) -> Result<T, Error>
+    where
+        T: Send + 'static,
+        F: FnOnce(&str, &str, &str) -> Result<T, Error> + Send + 'static,
+    {
+        if !solartt_control_api::validate_request_id(&request_id) {
+            return Err(Error::Invalid("Invalid request ID"));
+        }
+        let engine = self.clone();
+        tokio::spawn(async move {
+            let _serial = engine.mutations.lock().await;
+            if engine.closing.load(Ordering::Acquire) {
+                return Err(Error::Denied);
+            }
+            let worker = engine.clone();
+            tokio::task::spawn_blocking(move || {
+                let persistent = worker.persistent.lock().unwrap();
+                let found = persistent.document.users.iter().find_map(|user| {
+                    user.credentials
+                        .iter()
+                        .find(|credential| credential.id == credential_id && !credential.revoked)
+                        .map(|credential| (user.id.clone(), user.label.clone(), credential.clone()))
+                });
+                drop(persistent);
+                let user_id = found.as_ref().map(|(id, _, _)| id.as_str());
+                let result = match &found {
+                    Some((_, label, credential)) => worker
+                        .unseal(credential)
+                        .and_then(|password| build(&credential.username, password.as_str(), label)),
+                    None => Err(Error::NotFound),
+                };
+                let safe_credential = uuid::Uuid::parse_str(&credential_id)
+                    .ok()
+                    .map(|id| id.to_string());
+                let mut persistent = worker.persistent.lock().unwrap();
+                let revision = persistent.document.revision;
+                persistent.store.record_export(
+                    revision,
+                    user_id,
+                    if result.is_ok() {
+                        "profile_export_prepared"
+                    } else {
+                        "profile_export_denied"
+                    },
+                    store::AuditContext {
+                        request_id: &request_id,
+                        actor_uid: Some(actor_uid),
+                        credential_id: safe_credential.as_deref(),
+                    },
+                )?;
+                result
+            })
+            .await
+            .map_err(|_| Error::Invalid("Export worker failed"))?
+        })
+        .await
+        .map_err(|_| Error::Invalid("Export task failed"))?
+    }
+    pub fn storage_info(&self) -> Result<solartt_control_api::StorageInfo, Error> {
+        self.persistent.lock().unwrap().store.storage_info()
+    }
+    pub fn maintain_storage(&self) -> Result<(), Error> {
+        self.persistent.lock().unwrap().store.maintain(now())
+    }
+    fn mutate(&self, request: &Request, actor_uid: Option<u32>) -> Result<Mutation, Error> {
         if !solartt_control_api::validate_request_id(&request.request_id)
             || !request.command.mutates()
         {
@@ -443,6 +538,9 @@ impl Engine {
         let mut p = self.persistent.lock().unwrap();
         if let Some(previous) = p.store.previous(&request.request_id, &fingerprint)? {
             return Ok(previous);
+        }
+        if p.store.request_expired(request.expected_revision)? {
+            return Err(Error::RequestExpired);
         }
         if request.expected_revision != Some(p.document.revision) {
             return Err(Error::RevisionConflict);
@@ -561,11 +659,20 @@ impl Engine {
             .ok_or(Error::Invalid("Revision overflow"))?;
         p.store.save_mutation(
             &document,
-            &request.request_id,
             &fingerprint,
             resource_id.as_deref(),
             user_id.as_deref(),
             operation,
+            store::AuditContext {
+                request_id: &request.request_id,
+                actor_uid,
+                credential_id: match &request.command {
+                    Command::RotateCredential { credential_id }
+                    | Command::RevokeCredential { credential_id } => Some(credential_id),
+                    Command::CreateCredential { .. } => resource_id.as_deref(),
+                    _ => None,
+                },
+            },
         )?;
         p.document = document.clone();
         drop(p);
@@ -581,7 +688,14 @@ impl Engine {
     /// Serialize mutations, pause new permits during policy/period transitions,
     /// and report applied only after cancelled transports have released ownership.
     pub async fn apply(self: &Arc<Self>, request: Request) -> Result<(Mutation, bool), Error> {
-        self.apply_at(request, now(), false).await
+        self.apply_at(request, now(), false, None).await
+    }
+    pub async fn apply_as(
+        self: &Arc<Self>,
+        request: Request,
+        actor_uid: u32,
+    ) -> Result<(Mutation, bool), Error> {
+        self.apply_at(request, now(), false, Some(actor_uid)).await
     }
     // Dropping an API/maintenance caller must not cancel an in-progress commit,
     // release its serialization lock early, or leave permit admission paused.
@@ -590,17 +704,23 @@ impl Engine {
         request: Request,
         timestamp: i64,
         automatic: bool,
+        actor_uid: Option<u32>,
     ) -> Result<(Mutation, bool), Error> {
         let engine = self.clone();
-        tokio::spawn(async move { engine.apply_inner(request, timestamp, automatic).await })
-            .await
-            .map_err(|_| Error::Invalid("Mutation task failed"))?
+        tokio::spawn(async move {
+            engine
+                .apply_inner(request, timestamp, automatic, actor_uid)
+                .await
+        })
+        .await
+        .map_err(|_| Error::Invalid("Mutation task failed"))?
     }
     async fn apply_inner(
         self: &Arc<Self>,
         request: Request,
         timestamp: i64,
         automatic: bool,
+        actor_uid: Option<u32>,
     ) -> Result<(Mutation, bool), Error> {
         let _serial = self.mutations.lock().await;
         if self.closing.load(Ordering::Acquire) {
@@ -642,12 +762,12 @@ impl Engine {
         let engine = self.clone();
         let result = tokio::task::spawn_blocking(move || {
             if matches!(request.command, Command::StartPeriod { .. }) {
-                engine.start_period(&request, timestamp, automatic)
+                engine.start_period(&request, timestamp, automatic, actor_uid)
             } else {
                 if let Command::SetPolicy { user_id, .. } = &request.command {
                     engine.return_unused(user_id)?;
                 }
-                engine.mutate(&request)
+                engine.mutate(&request, actor_uid)
             }
         })
         .await
@@ -673,6 +793,7 @@ impl Engine {
         request: &Request,
         timestamp: i64,
         automatic: bool,
+        actor_uid: Option<u32>,
     ) -> Result<Mutation, Error> {
         let Command::StartPeriod { user_id, period_id } = &request.command else {
             return Err(Error::Invalid("Not a period transition"));
@@ -697,6 +818,9 @@ impl Engine {
         let mut p = self.persistent.lock().unwrap();
         if let Some(old) = p.store.previous(&request.request_id, &fingerprint)? {
             return Ok(old);
+        }
+        if p.store.request_expired(request.expected_revision)? {
+            return Err(Error::RequestExpired);
         }
         if request.expected_revision != Some(p.document.revision) {
             return Err(Error::RevisionConflict);
@@ -726,11 +850,15 @@ impl Engine {
             .ok_or(Error::Invalid("Revision overflow"))?;
         p.store.save_mutation(
             &document,
-            &request.request_id,
             &fingerprint,
             None,
             Some(user_id),
             "start_period",
+            store::AuditContext {
+                request_id: &request.request_id,
+                actor_uid,
+                credential_id: None,
+            },
         )?;
         p.document = document.clone();
         state.user = find_user(&mut document, user_id)?.clone();
@@ -834,6 +962,7 @@ impl Engine {
                 },
                 timestamp,
                 true,
+                None,
             )
             .await?;
         }

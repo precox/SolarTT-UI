@@ -20,11 +20,13 @@
 - [ ] CI, dependency licenses, checksums and reproducible upstream pin recorded.
 - [x] Full Git history, tracked source and unpacked development packages scanned for secrets.
 - [x] Production lockfile has no known RustSec vulnerabilities; parser maintenance warnings recorded.
+- [x] Export audit, retained retry/ledger semantics and SQLite-full rollback tested.
 
 Unchecked gates are not implemented or verified guarantees. This file is updated
 with concrete test commands and results, not with anticipated outcomes.
 
 Automated results: [verification record](verification.md). Checked transport and
 policy gates refer to isolated tests on the runner; they do not claim Android,
-ACME or production-node acceptance. Database checks cover schema-1 initialization,
-future-schema refusal and verified restore; cross-version migrations remain open.
+ACME or production-node acceptance. Database checks cover schema-1 to schema-2
+migration, full-storage rollback, future-schema refusal and verified restore;
+distinct-version package upgrades on a fresh VM remain open.

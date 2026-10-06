@@ -81,6 +81,30 @@ pub struct AuditEntry {
     pub revision: u64,
     pub operation: String,
     pub subject: Option<String>,
+    #[serde(default)]
+    pub actor_uid: Option<u32>,
+    #[serde(default)]
+    pub credential_id: Option<String>,
+    #[serde(default)]
+    pub request_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StorageInfo {
+    pub schema_version: u32,
+    pub audit_rows: u64,
+    pub request_rows: u64,
+    pub ledger_rows: u64,
+    pub audit_max_rows: u32,
+    pub audit_max_days: u32,
+    pub request_max_rows: u32,
+    pub request_max_days: u32,
+    pub periods_per_user: u32,
+    pub database_bytes: u64,
+    pub database_max_bytes: u64,
+    pub wal_bytes: u64,
+    pub wal_max_bytes: u64,
+    pub last_write_failed: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -91,6 +115,8 @@ pub struct Info {
     pub capabilities: Vec<String>,
     pub readiness: bool,
     pub period_timezone: String,
+    #[serde(default)]
+    pub storage: Option<StorageInfo>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -161,5 +187,19 @@ mod tests {
             serde_json::to_string(&zero).unwrap(),
             serde_json::to_string(&unlimited).unwrap()
         );
+    }
+    #[test]
+    fn legacy_audit_has_unknown_actor_and_request_cannot_claim_a_peer_uid() {
+        let entry: AuditEntry = serde_json::from_str(
+            r#"{"seq":1,"timestamp":0,"revision":1,"operation":"create_user","subject":"fixture"}"#,
+        )
+        .unwrap();
+        assert!(
+            entry.actor_uid.is_none()
+                && entry.credential_id.is_none()
+                && entry.request_id.is_none()
+        );
+        let spoof = r#"{"request_id":"fixture","expected_revision":null,"actor_uid":0,"command":{"op":"info"}}"#;
+        assert!(serde_json::from_str::<Request>(spoof).is_err());
     }
 }

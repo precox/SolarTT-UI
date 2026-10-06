@@ -1,6 +1,6 @@
 //! Explicit host administrator operations; never invoked by the web panel.
 use rand::{rngs::OsRng, RngCore};
-use solartt_policy::{backup, Engine};
+use solartt_policy::{backup, RetentionPolicy};
 use std::{
     io::{Read, Write},
     os::unix::fs::{MetadataExt, OpenOptionsExt},
@@ -21,6 +21,10 @@ fn key(path: &Path) -> Result<[u8; 32], Box<dyn std::error::Error>> {
         .try_into()
         .map_err(|_| "Key must contain exactly 32 bytes".into())
 }
+fn retention(path: &str) -> Result<RetentionPolicy, Box<dyn std::error::Error>> {
+    toml::from_str(&std::fs::read_to_string(path)?)
+        .map_err(|_| "Invalid storage-retention configuration".into())
+}
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     unsafe { libc::umask(0o077) };
     let args: Vec<_> = std::env::args().skip(1).collect();
@@ -29,8 +33,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ["init-key",path]=>{let mut bytes=[0u8;32];OsRng.fill_bytes(&mut bytes);let mut file=std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(path)?;file.write_all(&bytes)?;file.sync_all()?;},
         ["backup",database,destination]=>{backup::backup_database(Path::new(database),Path::new(destination))?;println!("Private SQLite snapshot created. Preserve its matching encryption key separately.");},
         ["restore",snapshot,key_path,destination]=>{backup::restore_database(Path::new(snapshot),key(Path::new(key_path))?,Path::new(destination))?;println!("Validated snapshot restored into a new database path.");},
-        ["check",database,key_path,timezone]=>{let engine=Engine::open_in_timezone(Path::new(database),key(Path::new(key_path))?,timezone)?;println!("Database and key valid; schema 1, policy revision {}.",engine.revision());},
-        _=>return Err("Usage: solartt-admin init-key PATH | backup DB NEW_SNAPSHOT | restore SNAPSHOT KEY NEW_DB | check DB KEY TIMEZONE | --version".into()),
+        ["check",database,key_path,timezone]=>{let (schema,revision)=backup::check_database(Path::new(database),key(Path::new(key_path))?,timezone,RetentionPolicy::default())?;println!("Database and key valid; source schema {schema}, policy revision {revision}. Source unchanged.");},
+        ["check",database,key_path,timezone,policy]=>{let retention=retention(policy)?;let (schema,revision)=backup::check_database(Path::new(database),key(Path::new(key_path))?,timezone,retention)?;println!("Database and key valid; source schema {schema}, policy revision {revision}. Source unchanged.");},
+        ["restore",snapshot,key_path,destination,policy]=>{let retention=retention(policy)?;backup::restore_with_retention(Path::new(snapshot),key(Path::new(key_path))?,Path::new(destination),retention)?;println!("Validated snapshot restored into a new database path.");},
+        _=>return Err("Usage: solartt-admin init-key PATH | backup DB NEW_SNAPSHOT | restore SNAPSHOT KEY NEW_DB [RETENTION.toml] | check DB KEY TIMEZONE [RETENTION.toml] | --version".into()),
     }
     Ok(())
 }

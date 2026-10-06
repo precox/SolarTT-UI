@@ -163,7 +163,27 @@ assert not os.access('/etc/solartt/tls/private.key',os.R_OK)
         client = tomllib.loads(profile["toml"])
         assert not client["skip_verification"] and not client["has_ipv6"]
         assert "<svg" in profile["qr_svg"]
-        assert len(command({"op": "audit", "before": None})["entries"]) == 2
+        audit = command({"op": "audit", "before": None})["entries"]
+        assert len(audit) == 3
+        assert audit[0]["operation"] == "profile_export_prepared"
+        assert audit[0]["actor_uid"] == panel_uid and audit[0]["credential_id"] == credential
+        assert audit[0]["subject"] == user and audit[0]["request_id"].startswith("smoke-")
+        info = command({"op": "info"})["info"]
+        assert info["storage"]["schema_version"] == 2
+        assert info["storage"]["audit_rows"] == 3 and not info["storage"]["last_write_failed"]
+        denied = api("/api/command", {"request_id": "smoke-denied-export", "expected_revision": revision,
+            "command": {"op": "export_profile", "credential_id": "00000000-0000-0000-0000-000000000001"}})
+        assert denied["result"]["kind"] == "error" and "toml" not in denied["result"]
+        audit = command({"op": "audit", "before": None})["entries"]
+        assert audit[0]["operation"] == "profile_export_denied" and audit[0]["actor_uid"] == panel_uid
+        assert audit[0]["request_id"] == "smoke-denied-export"
+        try:
+            api("/api/command", {"request_id": "smoke-spoof-uid", "expected_revision": revision,
+                "actor_uid": 0, "command": {"op": "info"}})
+        except urllib.error.HTTPError as error:
+            assert error.code == 400
+        else:
+            raise AssertionError("Untrusted JSON spoofed the caller UID")
 
         from h2.connection import H2Connection
         from h2.config import H2Configuration
@@ -280,7 +300,7 @@ assert not os.access('/etc/solartt/tls/private.key',os.R_OK)
         run("sudo", "systemctl", "stop", *services)
         run("sudo", "-u", "solartt-agent", "solartt-admin", "backup", str(data / "policy.sqlite"), str(data / "snapshot.sqlite"))
         run("sudo", "-u", "solartt-agent", "solartt-admin", "restore", str(data / "snapshot.sqlite"), str(data / "encryption.key"), str(data / "restored.sqlite"))
-        run("sudo", "-u", "solartt-agent", "solartt-admin", "check", str(data / "restored.sqlite"), str(data / "encryption.key"), "UTC")
+        run("sudo", "-u", "solartt-agent", "solartt-admin", "check", str(data / "restored.sqlite"), str(data / "encryption.key"), "UTC", "/usr/share/doc/solartt-ui/examples/retention.toml")
         key_digest = run("sudo", "sha256sum", str(data / "encryption.key")).stdout
         config_digest = run("sudo", "sha256sum", str(config / "agent.toml")).stdout
         run("sudo", "dpkg", "-i", str(deb))

@@ -7,3 +7,4 @@ license.workspace = true
 solartt-policy = { path = "../policy" }
 rand.workspace = true
 libc = "0.2"
+toml = "0.8"

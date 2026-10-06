@@ -1,0 +1,8 @@
+# Standalone policy for solartt-admin check/restore when overriding default limits.
+audit_max_rows = 10000
+audit_max_days = 90
+request_max_rows = 4096
+request_max_days = 7
+periods_per_user = 256
+database_max_bytes = 67108864
+wal_max_bytes = 16777216

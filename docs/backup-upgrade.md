@@ -49,7 +49,8 @@ arbitrary SQLite corruption or storage device failure.
 1. Record build.json, policy revision, timezone and service account UIDs.
 2. Stop the agent and panel; make a clean backup and preserve the data key.
 3. Review the changelog and supported schema versions. This alpha supports
-   schema 1 only and refuses future schemas; no downgrade migration is implied.
+   schema 2 and upgrades verified schema-1 data transactionally. Preserve a
+   pre-upgrade schema-1 snapshot for rollback; an alpha.1 binary refuses schema 2.
 4. Inspect and install the new package. It preserves configuration and data and
    does not start services automatically.
 5. Start the agent and panel explicitly. Verify TLS, profile export, quota
@@ -59,3 +60,8 @@ If validation fails, keep services stopped and restore a compatible snapshot to
 a new path. Never run two agents against one database; an exclusive process lock
 rejects that configuration. Backups are the exception: a read-only SQLite snapshot
 utility may coexist with the running agent.
+
+`check` validates a staging copy and does not migrate its source. `restore` can
+upgrade an old snapshot in staging before publishing a new schema-2 database.
+Use optional standalone retention settings for custom storage limits. See
+[storage, retry retention and migration semantics](storage-and-audit.md).

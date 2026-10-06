@@ -43,7 +43,9 @@ async function refresh() {
     snapshot = revision; users.push(...page.users); after = page.next_after;
   } while (after !== null);
   $("timezone").textContent = info.info.period_timezone;
-  if (!info.info.capabilities.includes("calendar_periods") || !info.info.capabilities.includes("audit")) throw new Error("Agent is missing required capabilities");
+  const storage = info.info.storage;
+  $("storage").textContent = storage ? `${storage.last_write_failed ? "Storage write failed. " : ""}Audit: ${storage.audit_rows}/${storage.audit_max_rows} entries, up to ${storage.audit_max_days} days. Retry receipts: ${storage.request_rows}/${storage.request_max_rows}, up to ${storage.request_max_days} days. Quota history is preserved.` : "Storage status unavailable.";
+  if (!info.info.capabilities.includes("calendar_periods") || !info.info.capabilities.includes("audit") || !info.info.capabilities.includes("audited_profile_export") || !info.info.capabilities.includes("bounded_storage")) throw new Error("Agent is missing required capabilities");
   $("users").replaceChildren(); $("stats").replaceChildren();
   for (const [value, label] of [[users.length,"Users"],[users.reduce((n,u)=>n+u.active_sessions,0),"Active sessions"],[users.filter(u=>u.status==="active").length,"Users with access"]]) {
     const card = node("div", undefined, "stat"); card.append(node("strong",String(value)),node("span",label)); $("stats").append(card);
@@ -93,7 +95,7 @@ async function audit(reset) {
   if (reset) { auditBefore = null; $("audit-rows").replaceChildren(); }
   const result = await command({op:"audit",before:auditBefore});
   for (const item of result.entries) {
-    const tr=node("tr");tr.append(node("td",new Date(item.timestamp*1000).toLocaleString()),node("td",String(item.revision)),node("td",item.operation),node("td",item.subject || "—"));$("audit-rows").append(tr);
+    const tr=node("tr");tr.append(node("td",new Date(item.timestamp*1000).toLocaleString()),node("td",String(item.revision)),node("td",item.operation),node("td",item.subject || "—"),node("td",item.actor_uid == null ? "Unknown / internal" : String(item.actor_uid)),node("td",item.credential_id || "—"));$("audit-rows").append(tr);
   }
   auditBefore=result.next_before;$("audit-more").disabled=auditBefore===null;
 }
