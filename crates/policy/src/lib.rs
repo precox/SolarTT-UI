@@ -484,12 +484,13 @@ impl Engine {
                 let found = persistent.document.users.iter().find_map(|user| {
                     user.credentials
                         .iter()
-                        .find(|credential| credential.id == credential_id && !credential.revoked)
+                        .find(|credential| credential.id == credential_id)
                         .map(|credential| (user.id.clone(), user.label.clone(), credential.clone()))
                 });
                 drop(persistent);
                 let user_id = found.as_ref().map(|(id, _, _)| id.as_str());
                 let result = match &found {
+                    Some((_, _, credential)) if credential.revoked => Err(Error::Denied),
                     Some((_, label, credential)) => worker
                         .unseal(credential)
                         .and_then(|password| build(&credential.username, password.as_str(), label)),

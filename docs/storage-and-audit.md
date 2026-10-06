@@ -6,7 +6,9 @@ The control API records `profile_export_prepared` before returning a secret-bear
 profile, or `profile_export_denied` when preparation fails. The event contains
 timestamp, policy revision, user/profile IDs, request ID and the Unix peer UID.
 UID comes from the kernel peer-credential check; JSON cannot supply or override it.
-Imported legacy entries and internal maintenance can have an unknown caller UID.
+The panel service UID identifies the control caller in this single-admin release;
+it is not a per-web-user identity. Imported legacy entries and internal maintenance
+can have an unknown caller UID.
 
 Passwords, usernames, deep links, TOML, QR images and authorization headers are not
 audit fields. If the audit transaction fails, no profile is returned. Preparation
@@ -90,7 +92,7 @@ failures also produce generic operational diagnostics without profile contents.
 ## Schema 1 → 2
 
 Alpha.2 creates schema 2. It validates the data key, timezone and credential
-decryption before migrating an existing schema-1 database. Migration, current
+decryption of active credentials before migrating an existing schema-1 database. Migration, current
 ledger initialization and retention changes use one transaction. Failure rolls
 the transaction back. Future schemas are refused before schema changes.
 

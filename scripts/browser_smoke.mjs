@@ -92,7 +92,11 @@ try {
   assert(await evaluate('document.getElementById("qr").src.startsWith("data:image/svg+xml;base64,")'), 'QR was not generated locally');
   await evaluate('document.getElementById("close-profile").click()');
   await waitFor(async () => await evaluate('exported === null && document.getElementById("deeplink").value === "" && !document.getElementById("qr").hasAttribute("src")'), 'cleared profile');
-  const screenshot = await call('Page.captureScreenshot', {format: 'png', captureBeyondViewport: true});
+  assert(await evaluate('document.getElementById("storage").textContent.includes("Audit:")'), 'storage status was not rendered');
+  await evaluate('document.getElementById("audit-refresh").closest("details").open=true; document.getElementById("audit-refresh").click()');
+  await waitFor(async () => await evaluate('document.querySelectorAll("#audit-rows tr").length > 0'), 'audit history');
+  assert(await evaluate('(() => {const row=Array.from(document.querySelectorAll("#audit-rows tr")).find(r=>r.children[2].textContent==="profile_export_prepared");return !!row && /^\\d+$/.test(row.children[4].textContent) && row.children[5].textContent!=="—";})()'), 'trusted export actor/profile was not rendered');
+  const screenshot = await call('Page.captureScreenshot' , {format: 'png', captureBeyondViewport: true});
   await mkdir(join(root, 'dist'), {recursive: true});
   await writeFile(join(root, 'dist/panel-fixture.png'), Buffer.from(screenshot.data, 'base64'));
   await evaluate('document.getElementById("logout").click()');

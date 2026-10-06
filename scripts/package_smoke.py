@@ -181,7 +181,7 @@ assert not os.access('/etc/solartt/tls/private.key',os.R_OK)
             api("/api/command", {"request_id": "smoke-spoof-uid", "expected_revision": revision,
                 "actor_uid": 0, "command": {"op": "info"}})
         except urllib.error.HTTPError as error:
-            assert error.code == 400
+            assert error.code == 422
         else:
             raise AssertionError("Untrusted JSON spoofed the caller UID")
 

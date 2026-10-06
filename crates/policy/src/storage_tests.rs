@@ -145,6 +145,28 @@ async fn exports_record_trusted_actor_and_metadata_without_changing_policy_or_lo
     let entries = engine.audit(None).unwrap();
     assert_eq!(entries[0].operation, "profile_export_denied");
     assert_eq!(entries[0].actor_uid, Some(1235));
+    engine
+        .apply(request(
+            &engine,
+            Command::RevokeCredential {
+                credential_id: credential.clone(),
+            },
+        ))
+        .await
+        .unwrap();
+    let denied = engine
+        .export_audited(
+            "revoked-export".into(),
+            credential,
+            1236,
+            |_, _, _| -> Result<(), Error> { panic!("Revoked material reached the exporter") },
+        )
+        .await;
+    assert!(matches!(denied, Err(Error::Denied)));
+    let entry = &engine.audit(None).unwrap()[0];
+    assert_eq!(entry.operation, "profile_export_denied");
+    assert_eq!(entry.actor_uid, Some(1236));
+    assert_eq!(entry.subject.as_deref(), Some(user.as_str()));
 }
 
 #[tokio::test]
