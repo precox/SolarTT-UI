@@ -14,3 +14,5 @@ Review record: [2026-10-05 engineering security review](docs/security-review-202
 Run `python3 scripts/security_check.py source` before publishing source changes.
 CI also scans unpacked packages before uploading artifacts. A passing scan does
 not establish that the alpha is suitable for production.
+
+Current alpha.2 follow-up: [audited exports, storage retention and failure tests](docs/storage-review-2026-10-06.md).

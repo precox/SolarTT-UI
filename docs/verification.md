@@ -113,3 +113,13 @@ untrusted-peer rejection, TrustTunnel prefix refusal and real package ELF/linkag
 The managed patch requires patched Rustls >=0.23.45. Package/artifact secret scans
 again pass. See [the follow-up report](handoff-review-2026-10-05.md) for scope,
 original upstream-lock findings, artifact digest and remaining requirements.
+
+## Alpha.2 storage and audit
+
+Code `30904b5a6efa7fd61a61c3c46a0c5f8c7b8294b6` passed all four jobs in
+[run 37394545941](https://github.com/precox/SolarTT-UI/actions/runs/37394545941).
+137 tests, installed export-audit/UID checks, real browser storage/audit rendering
+and existing native/package checks passed. Source/package secret scans and the
+production dependency gate passed. See [stage 1 evidence](storage-review-2026-10-06.md)
+and [the storage contract](storage-and-audit.md) for defaults, schema migration,
+retry windows, rollback and remaining operational tests.

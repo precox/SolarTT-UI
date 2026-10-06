@@ -1,5 +1,8 @@
 # Handoff follow-up review — 2026-10-05 UTC
 
+Historical acceptance record. Export audit, retention and schema migration were
+subsequently completed in [alpha.2 stage 1](storage-review-2026-10-06.md).
+
 Reviewed baseline `76cc6a22bbf91842ed7d7246dbd027cf8d7bbe6f` against the operational
 handoff. That document provides context and prior measurements; it does not
 authorize production deployment. Changes here concern SolarTT source, examples

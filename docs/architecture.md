@@ -72,3 +72,19 @@ idempotent policy mutations and expected revisions. User and audit lists are
 paginated. TLS reload is a host administrator SIGHUP operation, outside policy
 revisions, and reads only the configured certificate paths. The panel exposes
 no shell, file upload, database restore or infrastructure configuration API.
+
+## Export audit and storage boundaries
+
+Alpha.2 records profile preparation or denial with the checked Unix peer UID,
+profile/user IDs and request ID. It persists the event before returning a secret;
+no password, profile link or QR is an audit field. Preparation does not prove
+delivery. The single-admin panel's UID identifies the control service, not a
+separate browser user.
+
+Audit and mutation receipts have configurable count/age limits. A persisted
+revision floor rejects old retries after receipt cleanup. Ledger entries are
+never pruned: new period creation is capped, and old periods retain their charge.
+SQLite page limits and WAL admission protect new durable writes under pressure;
+already charged leases remain conservative. See
+[the storage contract](storage-and-audit.md) for thresholds, retry rules and schema
+upgrade/rollback requirements.

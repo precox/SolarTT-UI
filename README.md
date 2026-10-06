@@ -8,7 +8,11 @@ TrustTunnel product.
 
 ## Development status
 
-Version 0.1 is under development. No production deployment or stability claims.
+Version 0.1 is under development. Current development packages are alpha.2 with
+audited profile exports, bounded storage and schema-2 migration. Preserve a
+compatible snapshot before upgrading; alpha.1 cannot open schema 2. See
+[storage and audit semantics](docs/storage-and-audit.md). No production deployment
+or stability claims.
 Release gates include per-user TCP/UDP quotas, closure of that user's TLS sessions
 without interrupting another user, crash recovery, client compatibility and
 installation on a clean VM.

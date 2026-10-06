@@ -1,5 +1,8 @@
 # Security review — 2026-10-05
 
+Historical review of the baseline below. Alpha.2's export audit, retention and
+storage follow-up is recorded [separately](storage-review-2026-10-06.md).
+
 Scope: the public SolarTT-UI source, reachable Git history, dependency lockfile,
 panel/agent boundaries, packaging and GitHub Actions. Baseline:
 `fddb8086d01a468f21618c080f3567e25b487425` on `dev/v0.1`.
