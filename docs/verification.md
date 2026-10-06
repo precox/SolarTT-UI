@@ -79,8 +79,7 @@ master key or TLS private key. No real credentials are used in these fixtures.
 ## Still required before a stable v0.1 release
 
 Android interoperability with the managed build, operational ACME renewal,
-upgrade between distinct versions, dependency
-license obligation review, sustained load/resource limits and measurements on
+dependency license obligation review, sustained load/resource limits and measurements on
 the intended node. The release checklist remains unchecked where the full requirement
 has not been verified.
 
@@ -123,3 +122,25 @@ and existing native/package checks passed. Source/package secret scans and the
 production dependency gate passed. See [stage 1 evidence](storage-review-2026-10-06.md)
 and [the storage contract](storage-and-audit.md) for defaults, schema migration,
 retry windows, rollback and remaining operational tests.
+
+## Actual version upgrade and recovery pilot
+
+Code `47b24b713a50f08e020e3a8143d2c69a493f56e8` passed all five jobs in
+[run 37516135465](https://github.com/precox/SolarTT-UI/actions/runs/37516135465).
+139 functional tests passed: 38 portable, 95 patched upstream, 5 managed
+transport and 1 raw-H2 regression. The separate release measurement, installed
+package acceptance and browser assertions also passed.
+
+On a fresh GitHub Ubuntu 24.04 VM, the new pilot installed the actual pinned
+alpha.1 package, forwarded official CLI TCP HTTPS and UDP/DNS payload, upgraded
+to alpha.2, performed a compatible schema-1 rollback and recovered schema 2.
+It verified preserved identity/policy/quota, refused active-database and
+new-spend rollback, rejected wrong-key/corrupt/overwrite restores, and retained
+data after package removal with an unrelated running service unchanged.
+
+History/source and both jobs' package/artifact secret scans reported zero
+findings. RustSec reported zero known production-lockfile vulnerabilities;
+the two unmaintained `rustls-pemfile` warnings remain. See
+[stage 2 evidence and artifact digests](pilot-review-2026-10-06.md),
+[the rollback contract](isolated-pilot.md) and
+[the persistent manual pilot plan](manual-pilot-plan.md).

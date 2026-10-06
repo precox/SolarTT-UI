@@ -10,6 +10,10 @@ Current package ELF/linkage is checked independently. GitHub describes standard
 Linux runners as fresh virtual machines:
 [runner reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
 
+The first complete passing run and artifact digests are recorded in
+[the pilot review](pilot-review-2026-10-06.md). Deployment inputs and the remaining
+client/operational checks are in [the manual pilot plan](manual-pilot-plan.md).
+
 ## Original baseline
 
 `upstream/pilot-baseline-pin.json` fixes actual alpha.1 source commit

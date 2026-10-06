@@ -11,8 +11,8 @@
 - [x] Calendar periods, manual resets, limit changes and timezone behavior tested.
 - [x] Private destinations, metadata, local/own IPs and DNS results denied.
 - [x] Panel login, rate limits, CSRF, XSS, secret exports and UDS permissions tested.
-- [ ] Database migrations, backup and restore tested.
-- [ ] Fresh VM install/upgrade/uninstall preserves unrelated services.
+- [x] Database migrations, backup, guarded rollback and restore tested.
+- [x] Fresh GitHub-hosted VM install/upgrade/uninstall preserves an active unrelated service.
 - [x] CA verification, SNI passthrough, cover HTTP and TLS renewal tested.
 - [x] Isolated HAProxy FIN cleanup preserves H2; actual Caddy PROXY v2 boundary tested.
 - [x] Development package payload/checksums and actual ELF runtime ABI/linkage checked.
@@ -28,5 +28,9 @@ with concrete test commands and results, not with anticipated outcomes.
 Automated results: [verification record](verification.md). Checked transport and
 policy gates refer to isolated tests on the runner; they do not claim Android,
 ACME or production-node acceptance. Database checks cover schema-1 to schema-2
-migration, full-storage rollback, future-schema refusal and verified restore;
-distinct-version package upgrades on a fresh VM remain open.
+migration, full-storage rollback, future-schema refusal and verified restore.
+The [isolated upgrade pilot](pilot-review-2026-10-06.md) also verifies actual
+alpha.1/alpha.2 packages, stopped-database rollback without lost quota charges,
+recovery with live payload and preservation of an active unrelated sentinel.
+The runner contains SDK/build tools; a minimal persistent Ubuntu VM, Android,
+operational ACME renewal and sustained observation remain manual requirements.

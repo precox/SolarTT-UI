@@ -13,6 +13,10 @@ audited profile exports, bounded storage and schema-2 migration. Preserve a
 compatible snapshot before upgrading; alpha.1 cannot open schema 2. See
 [storage and audit semantics](docs/storage-and-audit.md). No production deployment
 or stability claims.
+Actual alpha.1 → alpha.2 upgrade, guarded rollback and restore passed on a fresh
+GitHub-hosted VM: [pilot evidence](docs/pilot-review-2026-10-06.md).
+Android and sustained real-network acceptance remain pending; see the
+[manual pilot plan](docs/manual-pilot-plan.md).
 Release gates include per-user TCP/UDP quotas, closure of that user's TLS sessions
 without interrupting another user, crash recovery, client compatibility and
 installation on a clean VM.
