@@ -149,8 +149,8 @@ class Pilot:
                 if error.code != 503 or time.monotonic() >= deadline:
                     raise
                 time.sleep(0.1)
-        assert run("solartt-agent", "--version").stdout.decode().strip().endswith(version)
-        assert run("solartt-panel", "--version").stdout.decode().strip().endswith(version)
+        assert run("solartt-agent", "--version").stdout.decode().split()[2] == version
+        assert run("solartt-panel", "--version").stdout.decode().split()[2] == version
         self.unchanged_sentinel()
 
     def stop(self):
