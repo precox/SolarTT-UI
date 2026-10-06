@@ -88,6 +88,54 @@ jobs:
           name: solartt-linux-x86_64-development
           path: dist/
           retention-days: 7
+  pilot:
+    needs: native
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      SOLARTT_PILOT_DISPOSABLE: '1'
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d
+        with:
+          toolchain: 1.95.0
+      - run: sudo apt-get update && sudo apt-get install -y cmake libclang-dev pkg-config python3-h2 openssl
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: solartt-linux-x86_64-development
+          path: dist/current
+      - run: python3 scripts/prepare_pilot_baseline.py
+      - run: python3 scripts/prepare_client.py
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            target
+          key: pilot-baseline-rust1.95-7ec4b1779e20bb3268e704c82a397742e34d81ae
+          restore-keys: |
+            native-ubuntu24-rust1.95-
+      - name: Build the actual pinned alpha.1 binaries
+        working-directory: .dev/pilot-baseline
+        run: cargo build --locked --release -p solartt-agent -p solartt-panel -p solartt-admin
+      - name: Package original alpha.1 with its dependency notices
+        working-directory: .dev/pilot-baseline
+        run: |
+          cargo metadata --locked --format-version 1 | python3 scripts/licenses.py
+          python3 scripts/package.py
+      - name: Fresh VM upgrade, compatible rollback and schema-2 recovery
+        run: python3 scripts/pilot_upgrade.py
+      - name: Scan downloaded packages and pilot report
+        run: python3 scripts/security_check.py artifacts
+      - name: Pilot service diagnostics on failure
+        if: failure()
+        run: sudo journalctl -u solartt-agent.service -u solartt-panel.service --no-pager -n 100
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: solartt-isolated-upgrade-pilot
+          path: dist/
+          retention-days: 7
   legacy:
     runs-on: ubuntu-24.04
     timeout-minutes: 30

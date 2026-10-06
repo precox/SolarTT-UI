@@ -118,3 +118,70 @@ pub fn check_database(
     let engine = Engine::open_with_retention(&staged, key, timezone, retention)?;
     Ok((schema, engine.revision()))
 }
+
+/// Create a schema-compatible rollback candidate only while the live database is
+/// stopped and its canonical policy and quota ledgers still match the snapshot.
+/// Audit/receipt history may differ; preserve the current database for investigation.
+/// The original snapshot schema is copied, never downgraded in place.
+pub fn rollback_database(
+    snapshot: &Path,
+    current: &Path,
+    key: [u8; 32],
+    timezone: &str,
+    destination: &Path,
+    retention: RetentionPolicy,
+) -> Result<(), Error> {
+    use fs2::FileExt;
+    use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+    private_parent(current)?;
+    private_parent(destination)?;
+    if std::fs::symlink_metadata(destination).is_ok() {
+        return Err(Error::Invalid("Rollback destination already exists"));
+    }
+    let mut name = current.as_os_str().to_owned();
+    name.push(".lock");
+    let lock = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW)
+        .open(Path::new(&name))?;
+    let metadata = lock.metadata()?;
+    if !metadata.is_file()
+        || metadata.uid() != unsafe { libc::geteuid() }
+        || metadata.mode() & 0o077 != 0
+    {
+        return Err(Error::Invalid("Unsafe rollback lock"));
+    }
+    lock.try_lock_exclusive().map_err(|_| {
+        Error::Invalid("Current database is in use; stop the agent before rollback")
+    })?;
+    check_database(snapshot, key, timezone, retention.clone())?;
+    check_database(current, key, timezone, retention)?;
+    if rollback_state(snapshot)? != rollback_state(current)? {
+        return Err(Error::Invalid("Rollback would discard changed policy or quota charges; reconcile before restoring access"));
+    }
+    backup_database(snapshot, destination)
+}
+
+fn rollback_state(path: &Path) -> Result<(Vec<u8>, Vec<u8>), Error> {
+    let db = source(path)?;
+    let document: String =
+        db.query_row("SELECT data FROM document WHERE id=1", [], |r| r.get(0))?;
+    let document: crate::Document = serde_json::from_str(&document)?;
+    let mut query = db.prepare(
+        "SELECT user_id,period_id,charged,confirmed FROM ledger WHERE charged<>0 OR confirmed<>0 ORDER BY user_id,period_id",
+    )?;
+    let rows = query.query_map([], |r| {
+        Ok((
+            r.get::<_, String>(0)?,
+            r.get::<_, String>(1)?,
+            r.get::<_, u64>(2)?,
+            r.get::<_, u64>(3)?,
+        ))
+    })?;
+    let ledger = rows.collect::<Result<Vec<_>, _>>()?;
+    Ok((serde_json::to_vec(&document)?, serde_json::to_vec(&ledger)?))
+}

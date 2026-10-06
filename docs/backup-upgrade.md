@@ -65,3 +65,9 @@ utility may coexist with the running agent.
 upgrade an old snapshot in staging before publishing a new schema-2 database.
 Use optional standalone retention settings for custom storage limits. See
 [storage, retry retention and migration semantics](storage-and-audit.md).
+
+For a downgrade candidate, `rollback SNAPSHOT CURRENT_DB KEY TIMEZONE NEW_DB`
+requires the current agent to be stopped and refuses changed policy/quota data.
+It preserves the snapshot schema, rather than migrating the candidate. Preserve
+the current database and verify compatibility with the old binary before switching.
+See [the isolated pilot and rollback boundary](isolated-pilot.md).

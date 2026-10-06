@@ -107,7 +107,7 @@ def source():
 
 def artifacts():
     output = ROOT / "dist"
-    packages = list(output.glob("*.deb")) + list(output.glob("*.tar.gz"))
+    packages = list(output.rglob("*.deb")) + list(output.rglob("*.tar.gz"))
     if not packages:
         raise SystemExit("No packages to scan")
     with tempfile.TemporaryDirectory(prefix="solartt-artifacts-") as folder:

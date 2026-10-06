@@ -36,7 +36,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ["check",database,key_path,timezone]=>{let (schema,revision)=backup::check_database(Path::new(database),key(Path::new(key_path))?,timezone,RetentionPolicy::default())?;println!("Database and key valid; source schema {schema}, policy revision {revision}. Source unchanged.");},
         ["check",database,key_path,timezone,policy]=>{let retention=retention(policy)?;let (schema,revision)=backup::check_database(Path::new(database),key(Path::new(key_path))?,timezone,retention)?;println!("Database and key valid; source schema {schema}, policy revision {revision}. Source unchanged.");},
         ["restore",snapshot,key_path,destination,policy]=>{let retention=retention(policy)?;backup::restore_with_retention(Path::new(snapshot),key(Path::new(key_path))?,Path::new(destination),retention)?;println!("Validated snapshot restored into a new database path.");},
-        _=>return Err("Usage: solartt-admin init-key PATH | backup DB NEW_SNAPSHOT | restore SNAPSHOT KEY NEW_DB [RETENTION.toml] | check DB KEY TIMEZONE [RETENTION.toml] | --version".into()),
+        ["rollback",snapshot,current,key_path,timezone,destination]=>{backup::rollback_database(Path::new(snapshot),Path::new(current),key(Path::new(key_path))?,timezone,Path::new(destination),RetentionPolicy::default())?;println!("Compatible rollback candidate created; keep services stopped while switching binaries/configuration. Preserve the current database.");},
+        ["rollback",snapshot,current,key_path,timezone,destination,policy]=>{backup::rollback_database(Path::new(snapshot),Path::new(current),key(Path::new(key_path))?,timezone,Path::new(destination),retention(policy)?)?;println!("Compatible rollback candidate created; keep services stopped while switching binaries/configuration. Preserve the current database.");},
+        _=>return Err("Usage: solartt-admin init-key PATH | backup DB NEW_SNAPSHOT | restore SNAPSHOT KEY NEW_DB [RETENTION.toml] | check DB KEY TIMEZONE [RETENTION.toml] | rollback SNAPSHOT CURRENT_DB KEY TIMEZONE NEW_DB [RETENTION.toml] | --version".into()),
     }
     Ok(())
 }

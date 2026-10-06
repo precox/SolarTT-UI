@@ -631,3 +631,125 @@ async fn failed_schema_migration_rolls_back_all_ddl_and_can_retry_after_space_is
         "Migration retry changed the credential"
     );
 }
+
+#[tokio::test]
+async fn compatible_rollback_requires_stopped_database_and_never_downgrades_current_in_place() {
+    let (directory, engine) = fixture(RetentionPolicy::default());
+    let (_, credential, basic) = account(&engine, None).await;
+    drop(engine);
+    let current = directory.path().join("policy.sqlite");
+    legacy_schema(&current);
+    let snapshot = directory.path().join("snapshot-v1.sqlite");
+    backup::backup_database(&current, &snapshot).unwrap();
+    let upgraded = Engine::open(&current, [9; 32]).unwrap();
+    let candidate = directory.path().join("rollback-v1.sqlite");
+    assert!(backup::rollback_database(
+        &snapshot,
+        &current,
+        [9; 32],
+        "UTC",
+        &candidate,
+        RetentionPolicy::default()
+    )
+    .is_err());
+    assert!(!candidate.exists());
+    upgraded
+        .export_audited("audit-only-change".into(), credential, 1234, |_, _, _| {
+            Ok(())
+        })
+        .await
+        .unwrap();
+    drop(upgraded);
+    backup::rollback_database(
+        &snapshot,
+        &current,
+        [9; 32],
+        "UTC",
+        &candidate,
+        RetentionPolicy::default(),
+    )
+    .unwrap();
+    let restored = rusqlite::Connection::open(&candidate).unwrap();
+    assert_eq!(
+        restored
+            .query_row("SELECT version FROM schema_version", [], |r| r
+                .get::<_, u32>(0))
+            .unwrap(),
+        1
+    );
+    drop(restored);
+    let retained = rusqlite::Connection::open(&current).unwrap();
+    assert_eq!(
+        retained
+            .query_row("SELECT version FROM schema_version", [], |r| r
+                .get::<_, u32>(0))
+            .unwrap(),
+        2
+    );
+    drop(retained);
+    let upgraded = Engine::open(&current, [9; 32]).unwrap();
+    let session = upgraded
+        .open_session(upgraded.authenticate(&basic).unwrap())
+        .unwrap();
+    upgraded
+        .reserve(&session, 16, false)
+        .await
+        .unwrap()
+        .finish(16)
+        .unwrap();
+    upgraded.checkpoint().unwrap();
+    drop(session);
+    drop(upgraded);
+    let unsafe_candidate = directory.path().join("no-budget-reset.sqlite");
+    assert!(backup::rollback_database(
+        &snapshot,
+        &current,
+        [9; 32],
+        "UTC",
+        &unsafe_candidate,
+        RetentionPolicy::default()
+    )
+    .is_err());
+    assert!(!unsafe_candidate.exists());
+}
+
+#[tokio::test]
+async fn rollback_refuses_policy_changes_and_wrong_keys_without_publishing_a_candidate() {
+    let (directory, engine) = fixture(RetentionPolicy::default());
+    let (user, _, _) = account(&engine, None).await;
+    let current = directory.path().join("policy.sqlite");
+    let snapshot = directory.path().join("snapshot.sqlite");
+    backup::backup_database(&current, &snapshot).unwrap();
+    engine
+        .apply(request(
+            &engine,
+            Command::BlockUser {
+                user_id: user,
+                blocked: true,
+            },
+        ))
+        .await
+        .unwrap();
+    drop(engine);
+    let candidate = directory.path().join("must-not-exist.sqlite");
+    assert!(backup::rollback_database(
+        &snapshot,
+        &current,
+        [9; 32],
+        "UTC",
+        &candidate,
+        RetentionPolicy::default()
+    )
+    .is_err());
+    assert!(!candidate.exists());
+    assert!(backup::rollback_database(
+        &snapshot,
+        &current,
+        [8; 32],
+        "UTC",
+        &candidate,
+        RetentionPolicy::default()
+    )
+    .is_err());
+    assert!(!candidate.exists());
+}
