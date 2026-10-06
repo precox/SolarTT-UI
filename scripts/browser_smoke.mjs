@@ -111,5 +111,7 @@ try {
     await Promise.race([exited, pause(3000)]);
     if (chrome.exitCode === null && chrome.signalCode === null) { chrome.kill('SIGKILL'); await exited; }
   }
-  await rm(profile, {recursive: true, force: true});
+  // Renderer teardown can briefly recreate files after the main Chrome process exits.
+  // Bound retries for ENOTEMPTY/EBUSY; a persistent failure still fails the job.
+  await rm(profile, {recursive: true, force: true, maxRetries: 8, retryDelay: 100});
 }
