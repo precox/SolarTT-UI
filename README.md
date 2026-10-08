@@ -50,6 +50,7 @@ cargo test -p solartt-agent
 ```
 
 See [architecture](docs/architecture.md), [release gates](docs/release-gates.md),
+[runtime requirements and pilot sizing](docs/system-requirements.md),
 [installation](docs/install.md), [backup and upgrade](docs/backup-upgrade.md),
 [client compatibility](docs/client-compatibility.md),
 [dependency notices](docs/dependency-notices.md), [contributing](CONTRIBUTING.md)

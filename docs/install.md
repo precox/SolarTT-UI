@@ -5,6 +5,11 @@ Linux distributions and older glibc versions have not been verified. These
 instructions prepare an isolated pilot; never replace an existing VPN endpoint
 until the release gates and a separate rollout review are complete.
 
+See [runtime requirements and sizing](system-requirements.md). A lightly loaded
+2-GiB node is a planning target for a small pilot; the earlier 4-GiB VM proposal
+provides headroom and is not a panel requirement. Measured minimum requirements
+and sustained concurrent-user capacity remain open.
+
 ## Package
 
 Download the CI development artifact, check SHA256SUMS, then inspect the package:

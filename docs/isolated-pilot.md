@@ -76,9 +76,11 @@ by applying it as a downgrade shortcut.
 ## Persistent manual pilot
 
 For a short-lived Android/real-network pilot, propose a separate Ubuntu 24.04
-x86_64 VM: 2 vCPU, 4 GiB RAM, 30 GiB SSD and public IPv4. A smaller 1 vCPU/2 GiB
-node can exercise basic behavior; these are planning estimates, not user-capacity
-guarantees. Build binaries in CI. Budget about 7–14 days for operator/client
+x86_64 VM: 2 vCPU, 2 GiB RAM, 20–30 GiB SSD and public IPv4 on a lightly loaded
+node. The initial 4-GiB proposal adds headroom for shared workloads. A 1-vCPU
+candidate can exercise basic behavior; these are planning estimates, not measured
+minimums or user-capacity guarantees. See [runtime requirements](system-requirements.md).
+Build binaries in CI. Budget about 7–14 days for operator/client
 availability, sustained sessions and observation; retain results before deletion.
 
 Use a dedicated hostname and trusted certificate, private internal listeners and

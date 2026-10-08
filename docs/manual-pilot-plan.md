@@ -5,7 +5,9 @@ reuse a stock endpoint's certificate restart hook for the managed agent.
 
 ## Inputs and sizing
 
-- Ubuntu 24.04 LTS x86_64; proposed 2 vCPU / 4 GiB RAM / 30 GiB SSD.
+- Ubuntu 24.04 LTS x86_64; small-pilot planning target 2 vCPU / 2 GiB RAM /
+  20–30 GiB SSD on a lightly loaded node. The initial 4-GiB proposal adds headroom
+  for shared workloads; see [requirements and sizing](system-requirements.md).
 - Public IPv4, SSH username and an existing secure access method.
 - Separate neutral VPN hostname and HTTPS administrative hostname.
 - Operator-managed DNS and a certificate issuance/renewal contact.
