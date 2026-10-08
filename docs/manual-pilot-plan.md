@@ -13,9 +13,12 @@ reuse a stock endpoint's certificate restart hook for the managed agent.
 - Operator-managed DNS and a certificate issuance/renewal contact.
 - Agreed access sources for SSH/admin and a short-lived test-account expiry.
 
-Sizing is a planning estimate, not a concurrent-user promise. Allow approximately
-7–14 days for manual client/network tests and sustained observation; retain evidence
-and private backups before deleting the VM. Binary compilation belongs in CI.
+Sizing is a planning estimate, not a concurrent-user promise. Budget about one
+working day for setup and functional tests, then 24–72 hours of observation:
+roughly 2–4 calendar days with ready DNS/certificates/client access. Extend to
+7–14 days only for operator availability, additional networks or longer observation.
+Retain evidence and private backups before deleting the VM. Binary compilation
+belongs in CI. See [the budget and duration explanation](system-requirements.md).
 
 ## Preflight
 

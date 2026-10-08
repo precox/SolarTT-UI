@@ -80,8 +80,11 @@ x86_64 VM: 2 vCPU, 2 GiB RAM, 20–30 GiB SSD and public IPv4 on a lightly loade
 node. The initial 4-GiB proposal adds headroom for shared workloads. A 1-vCPU
 candidate can exercise basic behavior; these are planning estimates, not measured
 minimums or user-capacity guarantees. See [runtime requirements](system-requirements.md).
-Build binaries in CI. Budget about 7–14 days for operator/client
-availability, sustained sessions and observation; retain results before deletion.
+Build binaries in CI. A basic pilot budget is about one working day for setup
+and functional checks plus 24–72 hours of observation (roughly 2–4 calendar days
+if access/DNS/certificates are ready). The original 7–14-day window is optional
+headroom for operator/client availability, additional networks and longer
+observation. Retain results before deletion.
 
 Use a dedicated hostname and trusted certificate, private internal listeners and
 an explicitly reviewed SSH/proxy/ACME configuration. DNS, VM creation and actual

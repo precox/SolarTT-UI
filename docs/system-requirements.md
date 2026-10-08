@@ -29,6 +29,14 @@ extra headroom for a shared test node; 4 GiB is not a panel requirement. The VM
 disk target is also not the installed package size. Measure actual services,
 logs and backups before publishing a minimum disk requirement.
 
+The 2-GiB figure sizes the whole VM, including existing services and headroom;
+it is not an amount the application must allocate. Installed SolarTT consumption
+has not yet been measured on the intended node. Its configured panel/agent
+ceilings total 704 MiB. On the 2026-10-08 18:46 UTC follow-up, the existing UK node
+had about 1498 MiB available, leaving approximately 794 MiB after budgeting both
+ceilings. This arithmetic excludes additional proxy and future unrelated-workload
+growth; it is not a measured peak or a permanent memory reservation.
+
 On 2026-10-08 the existing 2-vCPU / 1967-MiB UK node had 1510 MiB available with
 its unrelated browser service stopped. That snapshot supports attempting a
 small monitored pilot; it does not validate sustained capacity or concurrent
@@ -66,3 +74,20 @@ the intended node remain to be recorded during the authorized pilot. Before
 publishing stable minimum requirements or a users-per-node estimate, measure
 idle, normal operation and bounded peak behavior, including concurrent
 administrative login/export and unrelated scheduled workloads.
+
+## Optional swap and pilot duration
+
+A 1-GiB SSD-backed swap file is a proposed reserve for transient memory pressure,
+not a prerequisite for starting this small pilot. Swapping eligible cold pages
+can help reclaim RAM; active swapping adds I/O latency, and cgroup memory/swap
+limits still apply. Do not count swap as fast RAM or as proof that a service
+cannot run out of memory. See [kernel memory concepts](https://docs.kernel.org/admin-guide/mm/concepts.html)
+and [cgroup memory/swap limits](https://docs.kernel.org/admin-guide/cgroup-v2.html).
+Swap has not been enabled by this review.
+
+Basic pilot planning: about one working day for installation and functional
+client/recovery checks, followed by 24–72 hours of observation. That is roughly
+2–4 calendar days if DNS, certificates and client access are ready and no blocker
+appears. The original 7–14-day window is optional calendar headroom for operator
+availability, additional networks or longer observation; it is not mandatory
+test execution time. Stable-release gates beyond this pilot remain separate.
