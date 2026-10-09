@@ -16,9 +16,9 @@ Download the CI development artifact, check SHA256SUMS, then inspect the package
 
 ```sh
 sha256sum -c SHA256SUMS
-dpkg-deb --info solartt-ui_0.1.0~alpha1_amd64.deb
-dpkg-deb --contents solartt-ui_0.1.0~alpha1_amd64.deb
-sudo dpkg -i solartt-ui_0.1.0~alpha1_amd64.deb
+dpkg-deb --info solartt-ui_0.1.0~alpha2_amd64.deb
+dpkg-deb --contents solartt-ui_0.1.0~alpha2_amd64.deb
+sudo dpkg -i solartt-ui_0.1.0~alpha2_amd64.deb
 ```
 
 The package creates dedicated service accounts and directories. It does not
