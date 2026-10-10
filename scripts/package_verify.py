@@ -42,6 +42,11 @@ def main():
             assert not any(part in (".dev", ".git", ".upstream", "private") for part in Path(name).parts)
             assert not name.endswith((".pem", ".key", ".sqlite", ".db", ".p12", ".pfx"))
         assert "usr/share/doc/solartt-ui/examples/haproxy.cfg" in deb_files
+        for path in tree.rglob("*"):
+            if path.is_dir():
+                assert path.stat().st_mode & 0o777 == 0o755, "Package directory is not publicly traversable"
+            elif path.is_file() and path.is_relative_to(tree / "usr/share/doc"):
+                assert path.stat().st_mode & 0o777 == 0o644, "Package documentation permissions differ"
         control = subprocess.check_output(["dpkg-deb", "--field", str(debs[0]), "Depends"], text=True)
         records = []
         for name in BINARIES:
