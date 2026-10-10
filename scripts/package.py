@@ -70,6 +70,15 @@ Description: Independent management for TrustTunnel
 """)
         for name in ("postinst", "prerm", "postrm"):
             copy(ROOT / "packaging/debian" / name, "DEBIAN/" + name, 0o755)
+        # Public package data must be readable/traversable even with a private
+        # builder umask. Explicit executable modes above remain unchanged.
+        tree.chmod(0o755)
+        (control / "control").chmod(0o644)
+        for path in tree.rglob("*"):
+            if path.is_dir():
+                path.chmod(0o755)
+            elif path.is_file() and path.is_relative_to(tree / "usr/share/doc"):
+                path.chmod(0o644)
         deb = output / f"solartt-ui_{deb_version}_amd64.deb"
         subprocess.run(["dpkg-deb", "--root-owner-group", "--build", str(tree), str(deb)], check=True)
         archive = output / f"solartt-ui-{version}-linux-x86_64.tar.gz"
