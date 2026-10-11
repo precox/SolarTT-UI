@@ -103,3 +103,40 @@ ACME, installed service-UID separation and full package lifecycle remain separat
 gates. The packaging permission fix now also has a Ubuntu CI regression: current
 native packages are built with umask 077 before normal payload/ELF checks and
 the installed smoke/upgrade jobs. A new CI result must be recorded independently.
+
+## Ubuntu CI follow-up: PASS
+
+Source/workflow commit `72ec312bfb014637e0b65912f251870506d87cd2` passed all five
+jobs in [run38154977805](https://github.com/precox/SolarTT-UI/actions/runs/38154977805),
+completed `2026-10-11T16:29:06Z`. New functional counts:38 portable,95 patched
+upstream,5 transport and1 raw-H2 = **139**. The separate release measurement and
+Python/browser/lifecycle assertions are not included in that count.
+
+| Job | ID | Result |
+| --- | --- | --- |
+| portable | 114515981267 | PASS: formatting, Clippy, syntax,38 tests |
+| security | 114515981479 | PASS: history/source0 findings; RustSec0 known vulnerabilities |
+| legacy | 114515981491 | PASS:95 tests |
+| native | 114515981530 | PASS:6 functional tests, private-umask packaging, ELF/payload, installed smoke/browser, package secret scans |
+| pilot | 114517580709 | PASS: actual alpha.1/alpha.2 upgrade, compatible rollback, new-spend rollback refusal, schema2 recovery, retained data/unrelated service |
+
+Production audit used RustSec database
+`7eebec69c352c7191b1f13eb95dd510eeca5d1de`; unmaintained rustls-pemfile1.0.4/2.2.0
+warnings remain. Both native and pilot package/artifact scans reported0 findings.
+The native log explicitly records `umask077`, successful payload/ABI validation,
+installed package/browser acceptance and reinstall/removal checks.
+
+| Artifact | ID | Bytes | GitHub ZIP SHA256 |
+| --- | --- | --- | --- |
+| solartt-linux-x86_64-development | 11708292629 | 16560578 | `048cde1ba8ae79fde057d93476d33e8c11a26abeb6ba3e4108566b2a99bd3773` |
+| solartt-isolated-upgrade-pilot | 11707808981 | 16570099 | `f6177ca00abb798744302f83ea5ac0befb3739ad8d5b260ced3dba90a0bf5060` |
+
+Digests agree between API metadata and upload/download logs. Retention7days;
+package-level hashes are in the artifact's SHA256SUMS, not these ZIP digests.
+Artifacts were not downloaded or installed over the existing production node.
+The earlier separate Cloud candidate ELF remains the private live-pilot binary.
+
+The Cloud packaging fix has now passed supported Ubuntu package acceptance.
+Installed service account isolation is verified on that runner, while the RIGA
+process pilot deliberately remains under one UID. Neither result proves manual
+Android/ACME,24h observation or sustained node capacity.

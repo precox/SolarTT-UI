@@ -144,3 +144,20 @@ the two unmaintained `rustls-pemfile` warnings remain. See
 [stage 2 evidence and artifact digests](pilot-review-2026-10-06.md),
 [the rollback contract](isolated-pilot.md) and
 [the persistent manual pilot plan](manual-pilot-plan.md).
+
+## Packaging fix and existing-node process evidence — 2026-10-11
+
+Source `72ec312bfb014637e0b65912f251870506d87cd2` passed all five jobs in
+[run38154977805](https://github.com/precox/SolarTT-UI/actions/runs/38154977805):
+139 functional tests, actual umask077 package build/verification, installed
+browser/IPC/package lifecycle and version upgrade/rollback/recovery acceptance.
+Secret scans found0 findings and RustSec0 known production vulnerabilities,
+with the same two visible parser-maintenance warnings.
+
+Separately, checksum-verified candidate ELF passed17 process checkpoints on an
+existing1-vCPU/2-GiB Ubuntu node, including sandboxed browser, real IPv4 CLI TCP,
+UDP/DNS and an established public B payload stream surviving A revocation.
+Targeted shared-ledger and restored-payload checks also passed. A private24h
+observation has started, not completed. See
+[the process/CI report](process-pilot-review-2026-10-11.md) for exact artifacts,
+RSS, conservative live-snapshot charge and environment distinctions.
