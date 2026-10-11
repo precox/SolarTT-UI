@@ -75,7 +75,10 @@ jobs:
           mkdir -p dist
           cargo test --locked --release -p solartt-agent --test transport measure_loopback_transport_and_durable_leases -- --ignored --nocapture --test-threads=1 | tee dist/measurements.txt
       - run: cargo metadata --locked --format-version 1 | python3 scripts/licenses.py
-      - run: python3 scripts/package.py
+      - name: Package with a private builder umask
+        run: |
+          umask 077
+          python3 scripts/package.py
       - run: python3 scripts/package_verify.py
       - run: python3 scripts/package_smoke.py
       - name: Scan unpacked packages and artifact files for secrets

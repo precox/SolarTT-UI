@@ -62,6 +62,14 @@ smaller advertised footprint.
 
 ## What has actually been measured
 
+The [2026-10-11 process pilot](process-pilot-review-2026-10-11.md) measured separate
+candidate processes on an existing 1-vCPU / 2-GiB Ubuntu node: panel approximately
+4.37 MiB low-load RSS / 23.78 MiB sampled peak; agent 11.59 / 15.40 MiB. These
+exclude browser/proxies/client and are not installed-stack or sustained-capacity
+measurements. The separate prior Cloud report measured panel 3.1 / 22.4 MiB and
+agent 10.3 / 14.8 MiB; those were different runs. Configured ceilings remain
+192 MiB panel and 512 MiB agent.
+
 The recorded release transport fixture used about 17–18 MiB RSS in its single
 test process, including the client and echo servers. It excluded the installed
 panel, host proxies and full-node overhead. It therefore cannot establish the
