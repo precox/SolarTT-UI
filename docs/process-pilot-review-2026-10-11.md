@@ -98,11 +98,12 @@ At startup the supervisor cgroup used about 16.2 MiB and had a 35.3-MiB peak,
 including initialization and cover. Cgroup attribution differs from summed RSS;
 this is not the full browser fixture peak or sustained capacity.
 
-**24-hour observation: STARTED, not yet PASS.** Android/manual client, operational
-ACME, installed service-UID separation and full package lifecycle remain separate
-gates. The packaging permission fix now also has a Ubuntu CI regression: current
+**24-hour observation: PASS, reviewed 2026-10-12.** Follow-up sections below
+record installed service-UID checks and the ACME dry-run separately. Android/manual
+client and load-capacity acceptance remain open. The packaging permission fix
+also has a Ubuntu CI regression: current
 native packages are built with umask 077 before normal payload/ELF checks and
-the installed smoke/upgrade jobs. A new CI result must be recorded independently.
+the installed smoke/upgrade jobs. Its CI result is recorded independently below.
 
 ## Ubuntu CI follow-up: PASS
 
@@ -138,5 +139,70 @@ The earlier separate Cloud candidate ELF remains the private live-pilot binary.
 
 The Cloud packaging fix has now passed supported Ubuntu package acceptance.
 Installed service account isolation is verified on that runner, while the RIGA
-process pilot deliberately remains under one UID. Neither result proves manual
-Android/ACME,24h observation or sustained node capacity.
+original process pilot deliberately ran under one UID. These CI and finite-process
+results do not establish Android, operational renewal or sustained node capacity;
+the subsequent observation and installed-node results are recorded separately below.
+
+## Completed low-load observation
+
+The original private Cloud-ELF process pilot completed at
+`2026-10-12T16:08:57Z`, elapsed86428.96seconds, interrupted=false. All1440 minute
+samples reported readiness and no storage write failure; the largest sample gap
+was62.948seconds. Agent and panel retained their process IDs. RSS ranges were
+11764–12184KiB agent and4168–4720KiB panel, without continuing FD or DB/WAL/log
+growth. Systemd recorded successful deactivation,2min55.877s CPU,35.3MiB cgroup
+memory peak and no cgroup swap peak. The final snapshot passed the admin check;
+fixture processes/listeners stopped and the access file was removed.
+
+This is24-hour low-load process evidence. It does not establish concurrent-user
+capacity, Android acceptance or installed-package continuity. Production services
+were active at the final review; an unrelated MTProxy restart changed its PID,
+so unchanged PIDs for every production service are not claimed.
+
+## Installed two-user pilot preparation — 2026-10-13
+
+Following operator authorization for a separate live entry and manually created
+new profiles, the existing node received the verified development package from
+artifact11708292629/run38154977805/source72ec312. ZIP/package hashes, deb/tar
+payload equality, maintainer scripts and local runtime linkage were checked.
+These are new CI-built ELF, not the preceding Cloud process-pilot binaries:
+
+| Installed binary | SHA256 |
+| --- | --- |
+| agent | `24e8f3affc195e881eb4c84759aed072f4c080a82b8187d23b219c14b5f3c536` |
+| panel | `0e337a851f10a600e8164dd527f8b5b91d155971d5999880c8cd31f68111962e` |
+| admin | `b25481c86cffd9c4f1cfe8124057dcf554762bc7d357072ac7adff3cbde19417` |
+
+Dedicated service accounts and restricted Unix peer access are now verified on
+this node. The panel cannot read the agent's encryption/TLS keys. Panel HTTP,
+agent TLS and metrics bind only loopback. Administrative access uses SSH forwarding
+with its matching loopback origin; no public panel route was added. Services are
+enabled after initial acceptance, with packaged memory ceilings, additional
+CPU40% agent/10% panel and Nice10. No host reboot was performed.
+
+A separate public VPN hostname routes through the existing HAProxy443 frontend
+without PROXY metadata. An additive HTTP-01 Caddy route passed merged validation
+and a challenge probe. Both proxies were reloaded gracefully; the original stock
+endpoint and existing routes remain available. Their main process IDs stayed
+unchanged during this rollout. Ordinary HTTPS serves the static cover, not the
+panel UI. Operational names, credentials and private data are omitted here.
+
+A public-CA certificate was issued. Its separate host-owned deploy hook validates
+hostname/expiry/key matching, publishes certificate pairs through an atomic
+generation symlink, reloads only the managed agent and verifies the presented
+leaf with CA/hostname checks. A Certbot dry-run with deploy hooks passed; it
+applied the existing live certificate. This does not establish an actual future
+renewal with a changed leaf or uninterrupted authenticated client traffic.
+
+Initial readiness, private HTML/login/session/logout and public trusted TLS/H2
+passed. The user list was empty, and unauthenticated CONNECT returned404.
+No VPN users/profiles were imported or generated by the operator agent. An initial SQLite
+snapshot passed validation, and a private encrypted bundle was decrypted and all
+archived contents compared. Off-host backup storage remains unverified.
+
+Short post-acceptance RSS: agent16688KiB, panel4712KiB; panel sampled high-water
+23936KiB. These are not load-capacity measurements. Manual phone UI/profile
+creation, actual Android TCP/UDP, quota/revoke A with uninterrupted B, installed
+reboot and longer observation under real usage remain NOT VERIFIED. Earlier
+CI/process/idle-watch results are kept separate. No stable release or main merge
+was performed.
