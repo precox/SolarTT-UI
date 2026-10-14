@@ -2,7 +2,7 @@
 
 **Independent, self-hosted management for TrustTunnel.**
 
-User provisioning, traffic quotas, expiry, profile export, and individual session
+User provisioning, device profile limits, traffic quotas, expiry, profile export, and individual session
 revocation, with a lightweight web interface. Community project, not an official
 TrustTunnel product.
 
@@ -39,6 +39,18 @@ flowchart LR
 The initial scope is one Linux x86_64 node, HTTP/2, TCP and UDP. IPv6, QUIC,
 ICMP, speed shaping, payments and multi-node orchestration are outside v0.1.
 Quota means forwarded payload in both directions, not the provider's network bill.
+
+## Device setup
+
+Open a user's **Access settings** to set the device profile limit (0–16), or set it
+when creating the user. Choose **Add device**, enter a name, and create its
+connection profile. The next screen opens the TrustTunnel app, shows a local QR,
+or lets you copy the link/download TOML. Each profile has separate revocation.
+The layout uses cards on phones; password changes and revocation are under More.
+
+The limit counts issued, non-revoked profiles, including offline ones. It does
+not detect a profile copied to another physical device. Revoke profiles before
+lowering the limit below their current count. See [access semantics](docs/architecture.md).
 
 ## Build prerequisites
 

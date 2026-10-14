@@ -106,6 +106,7 @@ async fn process(req: Request, engine: Arc<Engine>, config: &Config, actor_uid: 
                 capabilities: vec![
                     "users".into(),
                     "credentials".into(),
+                    "device_profile_limits".into(),
                     "payload_quota".into(),
                     "expiry".into(),
                     "individual_session_revoke".into(),

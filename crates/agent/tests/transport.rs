@@ -126,6 +126,7 @@ async fn account(
                 limit_bytes: limit,
                 expires_at: None,
                 reset_monthly: false,
+                device_limit: None,
             },
         },
     )
@@ -462,6 +463,7 @@ async fn rotation_targets_one_profile_and_expiry_closes_remaining_user_transport
                     limit_bytes: None,
                     expires_at: Some(solartt_policy::now() - 1),
                     reset_monthly: false,
+                    device_limit: None,
                 },
             },
         })

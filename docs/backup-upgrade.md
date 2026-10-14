@@ -71,3 +71,20 @@ requires the current agent to be stopped and refuses changed policy/quota data.
 It preserves the snapshot schema, rather than migrating the candidate. Preserve
 the current database and verify compatibility with the old binary before switching.
 See [the isolated pilot and rollback boundary](isolated-pilot.md).
+
+
+## Device profile limits in development builds
+
+The optional device_limit policy field is stored in schema-2 JSON. Existing
+profiles without the field default to 16; omitted fields in older edit requests
+preserve an already configured limit. Request fingerprints without the field
+remain compatible with earlier receipts. Limit validation precedes a policy
+commit, and the same transaction records its audit entry and retry receipt.
+
+A configured field is deliberately rejected by the strict UserPolicy decoder of
+pre-feature binaries. Do not remove it to force a downgrade: that discards an
+access restriction. Retain build provenance in addition to the alpha package
+version and schema number. Check the device_profile_limits capability, use the
+matching backup tools and validate rollback compatibility before changing binaries.
+An older snapshot may have a different device allowance; the guarded rollback
+command refuses changed canonical policy rather than silently relaxing it.

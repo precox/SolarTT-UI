@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 pub const API_VERSION: u32 = 1;
 pub const MAX_FRAME_BYTES: usize = 128 * 1024;
+pub const MAX_DEVICE_PROFILES: u16 = 16;
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -45,6 +46,16 @@ pub struct UserPolicy {
     pub expires_at: Option<i64>,
     #[serde(default)]
     pub reset_monthly: bool,
+    /// Omission preserves the current setting on edit; new users default to 16.
+    /// Counts non-revoked credentials, not physical devices or TLS transports.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub device_limit: Option<u16>,
+}
+
+impl UserPolicy {
+    pub fn effective_device_limit(&self) -> u16 {
+        self.device_limit.unwrap_or(MAX_DEVICE_PROFILES)
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -167,6 +178,36 @@ pub fn validate_request_id(id: &str) -> bool {
 mod tests {
     use super::*;
     #[test]
+    fn legacy_policy_encoding_preserves_request_fingerprints() {
+        let old = r#"{"op":"set_policy","user_id":"fixture","policy":{"limit_bytes":null,"expires_at":null,"reset_monthly":false}}"#;
+        let command: Command = serde_json::from_str(old).unwrap();
+        assert_eq!(serde_json::to_string(&command).unwrap(), old);
+        let Command::SetPolicy { policy, .. } = command else {
+            panic!("Wrong command");
+        };
+        assert_eq!(policy.effective_device_limit(), 16);
+    }
+    #[test]
+    fn configured_limits_are_rejected_by_strict_pre_feature_policy_readers() {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct OldPolicy {
+            #[serde(rename = "limit_bytes")]
+            _limit_bytes: Option<u64>,
+            #[serde(rename = "expires_at")]
+            _expires_at: Option<i64>,
+            #[serde(rename = "reset_monthly")]
+            _reset_monthly: bool,
+        }
+        let old = r#"{"limit_bytes":null,"expires_at":null,"reset_monthly":false}"#;
+        assert!(serde_json::from_str::<OldPolicy>(old).is_ok());
+        let mut policy: UserPolicy = serde_json::from_str(old).unwrap();
+        policy.device_limit = Some(1);
+        assert!(
+            serde_json::from_str::<OldPolicy>(&serde_json::to_string(&policy).unwrap()).is_err()
+        );
+    }
+    #[test]
     fn rejects_unknown_mutation_fields() {
         let value = r#"{"op":"block_user","user_id":"a","blocked":true,"shell":"x"}"#;
         assert!(serde_json::from_str::<Command>(value).is_err());
@@ -177,11 +218,13 @@ mod tests {
             limit_bytes: Some(0),
             expires_at: None,
             reset_monthly: false,
+            device_limit: None,
         };
         let unlimited = UserPolicy {
             limit_bytes: None,
             expires_at: None,
             reset_monthly: false,
+            device_limit: None,
         };
         assert_ne!(
             serde_json::to_string(&zero).unwrap(),

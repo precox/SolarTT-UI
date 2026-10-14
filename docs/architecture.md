@@ -21,18 +21,32 @@ upgrades and host reboot can still interrupt every user.
 ### Connection counts and devices
 
 The dashboard counts connected profiles: credentials with at least one live
-authenticated TLS transport. Per-user TLS connections remain a secondary table
-value; one client can hold several at once. Counts are refreshed when the operator
+authenticated TLS transport. Per-user TLS connections remain in collapsed connection details; one client can hold several at once. Counts are refreshed when the operator
 loads or refreshes the dashboard or performs a management action, not by continuous
 polling. They are not historical-session or physical-device counts.
 
-This alpha has no configurable physical-device limit per credential. Copying one
-profile onto several devices shares its credential identity and user quota.
-The fixed ceilings of 16 issued credentials and 32 live transports per user are
-protective resource caps, not device entitlements. Issuing one profile per device
-allows separate revocation; it does not prevent that profile from being copied.
+Administrators set a per-user device **profile** limit from 0 to 16 in Access
+settings or when creating a user. The agent enforces it in the serialized durable
+mutation, including direct API calls and concurrent issuance. Zero disables new
+issuance for a user with no active profiles. Lowering below the number of
+non-revoked profiles fails; revoke unwanted profiles first. An offline profile
+still occupies its slot, and multiple TLS transports do not consume extra slots.
+
+Revocation frees a slot. On subsequent issuance, revoked credentials are removed
+from the bounded live document; their events remain in the retained audit log.
+This avoids a lifetime limit of 16 issued credentials. Quota periods and audit
+retention are independent of the device limit. Omitting the optional device_limit
+field when editing traffic/expiry preserves the current value; older users
+without this field default to 16. The device_profile_limits capability identifies
+an agent supporting this feature.
+
+There is no physical-device identity or anti-copy enforcement. Copying one profile
+onto several devices shares one slot, credential identity and user quota. Issuing
+one profile per device allows separate revocation, not prevention of copying.
 The proxy's loopback peer address cannot identify a device, and public IP addresses
-also cannot reliably distinguish devices behind NAT or across network changes.
+cannot reliably distinguish devices behind NAT or across network changes.
+The separate cap of 32 authenticated TLS transports per user remains a resource
+protection, not a device count.
 
 ## Quota
 
@@ -67,7 +81,7 @@ confirmed counters describe known accepted payload rather than delivery receipts
 Clean shutdown refunds only proven unused credit. Idempotency keys, audit,
 calendar metadata and credential generations are committed in SQLite.
 
-Initial resource caps: 256 users, 16 credentials per user, 32 authenticated
+Initial resource caps: 256 users, up to 16 non-revoked credentials per user, 32 authenticated
 transports per user, 128 concurrent inbound TLS connections globally in managed
 mode. The core has a separate bounded request registry. These are protective
 caps, not measured capacity or throughput guarantees. The legacy static-client

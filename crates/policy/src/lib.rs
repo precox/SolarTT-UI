@@ -1,6 +1,8 @@
 //! Durable access policy. No network or database I/O in authentication.
 pub mod backup;
 mod calendar;
+#[cfg(test)]
+mod device_tests;
 mod retention;
 #[cfg(test)]
 mod storage_tests;
@@ -223,6 +225,14 @@ impl Engine {
         let applied = document.revision;
         let mut users = HashMap::new();
         for user in &document.users {
+            validate_policy(&user.policy)?;
+            if user.credentials.iter().filter(|c| !c.revoked).count()
+                > usize::from(user.policy.effective_device_limit())
+            {
+                return Err(Error::Invalid(
+                    "Device limit is below the number of active profiles",
+                ));
+            }
             let ledger = store.ledger(&user.id, &user.period_id)?;
             users.insert(
                 user.id.clone(),
@@ -585,13 +595,25 @@ impl Engine {
             } => {
                 validate_policy(policy)?;
                 let u = find_user(&mut document, id)?;
+                let mut policy = policy.clone();
+                // Older callers editing traffic/expiry must not reset a device limit.
+                if policy.device_limit.is_none() {
+                    policy.device_limit = u.policy.device_limit;
+                }
+                if usize::from(policy.effective_device_limit())
+                    < u.credentials.iter().filter(|c| !c.revoked).count()
+                {
+                    return Err(Error::Invalid(
+                        "Device limit is below the number of active profiles; revoke a profile first",
+                    ));
+                }
                 if policy.reset_monthly && !u.policy.reset_monthly {
                     u.next_reset_at = Some(calendar::period(self.timezone, now())?.1);
                 }
                 if !policy.reset_monthly {
                     u.next_reset_at = None;
                 }
-                u.policy = policy.clone();
+                u.policy = policy;
                 user_id = Some(id.clone());
                 operation = "set_policy";
             }
@@ -606,9 +628,16 @@ impl Engine {
             Command::CreateCredential { user_id: id, label } => {
                 validate_label(label)?;
                 let u = find_user(&mut document, id)?;
-                if u.credentials.len() >= 16 {
-                    return Err(Error::Invalid("Too many credentials"));
+                if u.credentials.iter().filter(|c| !c.revoked).count()
+                    >= usize::from(u.policy.effective_device_limit())
+                {
+                    return Err(Error::Invalid(
+                        "Device limit reached; raise the limit or revoke a profile",
+                    ));
                 }
+                // Keep the canonical document bounded without a lifetime issuance cap.
+                // Audit entries retain the IDs of revoked profiles after compaction.
+                u.credentials.retain(|c| !c.revoked);
                 let cid = uuid::Uuid::new_v4().to_string();
                 let mut c = Credential {
                     id: cid.clone(),
@@ -1314,6 +1343,8 @@ fn validate_label(s: &str) -> Result<(), Error> {
 fn validate_policy(p: &UserPolicy) -> Result<(), Error> {
     if p.limit_bytes.is_some_and(|n| n > MAX_COUNTER) {
         Err(Error::Invalid("Quota is too large"))
+    } else if p.effective_device_limit() > solartt_control_api::MAX_DEVICE_PROFILES {
+        Err(Error::Invalid("Device limit must be between 0 and 16"))
     } else {
         Ok(())
     }
@@ -1358,6 +1389,7 @@ mod tests {
                         limit_bytes: limit,
                         expires_at: None,
                         reset_monthly: false,
+                        device_limit: None,
                     },
                 },
             ))
@@ -1558,6 +1590,7 @@ mod tests {
                     limit_bytes: Some(0),
                     expires_at: None,
                     reset_monthly: false,
+                    device_limit: None,
                 },
             },
         );
@@ -1620,6 +1653,7 @@ mod tests {
                     limit_bytes: Some(15),
                     expires_at: None,
                     reset_monthly: false,
+                    device_limit: None,
                 },
             },
         ))
@@ -1667,6 +1701,7 @@ mod tests {
                     limit_bytes: Some(100),
                     expires_at: None,
                     reset_monthly: true,
+                    device_limit: None,
                 },
             },
         ))
@@ -1721,6 +1756,7 @@ mod tests {
                     limit_bytes: Some(100),
                     expires_at: None,
                     reset_monthly: true,
+                    device_limit: None,
                 },
             },
         ))
@@ -1757,6 +1793,7 @@ mod tests {
                     limit_bytes: Some(200),
                     expires_at: None,
                     reset_monthly: false,
+                    device_limit: None,
                 },
             },
         );

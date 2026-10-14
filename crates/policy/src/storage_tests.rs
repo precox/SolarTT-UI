@@ -32,6 +32,7 @@ async fn account(engine: &Arc<Engine>, limit: Option<u64>) -> (String, String, S
                     limit_bytes: limit,
                     expires_at: None,
                     reset_monthly: false,
+                    device_limit: None,
                 },
             },
         ))
@@ -404,6 +405,7 @@ async fn pinned_wal_reader_pauses_new_writes_and_allows_same_request_after_relea
         limit_bytes: None,
         expires_at: None,
         reset_monthly: false,
+        device_limit: None,
     };
     engine
         .apply(request(
@@ -511,6 +513,7 @@ async fn retained_receipt_replay_is_exact_and_aged_retry_is_rejected_before_clea
         limit_bytes: None,
         expires_at: None,
         reset_monthly: false,
+        device_limit: None,
     };
     let first = request(
         &engine,
