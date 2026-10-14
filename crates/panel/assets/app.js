@@ -47,7 +47,8 @@ async function refresh() {
   $("storage").textContent = storage ? `${storage.last_write_failed ? "Storage write failed. " : ""}Audit: ${storage.audit_rows}/${storage.audit_max_rows} entries, up to ${storage.audit_max_days} days. Retry receipts: ${storage.request_rows}/${storage.request_max_rows}, up to ${storage.request_max_days} days. Quota history is preserved.` : "Storage status unavailable.";
   if (!info.info.capabilities.includes("calendar_periods") || !info.info.capabilities.includes("audit") || !info.info.capabilities.includes("audited_profile_export") || !info.info.capabilities.includes("bounded_storage")) throw new Error("Agent is missing required capabilities");
   $("users").replaceChildren(); $("stats").replaceChildren();
-  for (const [value, label] of [[users.length,"Users"],[users.reduce((n,u)=>n+u.active_sessions,0),"Active sessions"],[users.filter(u=>u.status==="active").length,"Users with access"]]) {
+  const connectedProfiles = users.reduce((n,u)=>n+u.credentials.filter(c=>c.active_sessions>0).length,0);
+  for (const [value, label] of [[users.length,"Users"],[users.filter(u=>u.status==="active").length,"Users with access"],[connectedProfiles,"Connected profiles"]]) {
     const card = node("div", undefined, "stat"); card.append(node("strong",String(value)),node("span",label)); $("stats").append(card);
   }
   show("empty", users.length === 0);
@@ -59,8 +60,8 @@ async function refresh() {
         item.append(action("Profile",async()=>{
           exported = await command({op:"export_profile",credential_id:credential.id});
           $("deeplink").value = exported.deeplink; $("qr").src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(exported.qr_svg))); $("profile").showModal();
-        }), action("Rotate",async()=>{if(confirm("Replace this profile's password and close its active sessions?")) {await command({op:"rotate_credential",credential_id:credential.id});await refresh();}}),
-        action("Revoke",async()=>{if(confirm("Revoke this profile and close its sessions?")) {await command({op:"revoke_credential",credential_id:credential.id});await refresh();}},"danger"));
+        }), action("Rotate",async()=>{if(confirm("Replace this profile's password and close its TLS connections?")) {await command({op:"rotate_credential",credential_id:credential.id});await refresh();}}),
+        action("Revoke",async()=>{if(confirm("Revoke this profile and close its TLS connections?")) {await command({op:"revoke_credential",credential_id:credential.id});await refresh();}},"danger"));
       }
       identity.append(item);
     }
@@ -75,7 +76,7 @@ async function refresh() {
       action("Policy",async()=>{editing=user.id;const f=$("edit-form");f.elements.monthly.checked=user.policy.reset_monthly;f.elements.quota.value=user.policy.limit_bytes===null?"":user.policy.limit_bytes/1073741824;
         const date=user.policy.expires_at?new Date(user.policy.expires_at*1000):null;f.elements.expiry.value=date?new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,16):"";$("edit").showModal();}),
       action("Reset quota",async()=>{if(confirm("Start a new quota period? This action is recorded.")){await command({op:"start_period",user_id:user.id,period_id:"manual-"+crypto.randomUUID()});await refresh();}}));
-    manage.append(controls);tr.append(identity,access,usage,node("td",String(user.active_sessions)),manage);$("users").append(tr);
+    manage.append(controls);tr.append(identity,access,usage,node("td",String(user.active_sessions),"small muted"),manage);$("users").append(tr);
   }
 }
 async function signedIn() {show("login",false);show("dashboard",true);show("logout",true);await refresh();}

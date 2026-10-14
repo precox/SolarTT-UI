@@ -18,6 +18,22 @@ This does not promise a specific Android VPN indicator: clients may reconnect.
 Bytes already enqueued in the network cannot be recalled. Process crashes,
 upgrades and host reboot can still interrupt every user.
 
+### Connection counts and devices
+
+The dashboard counts connected profiles: credentials with at least one live
+authenticated TLS transport. Per-user TLS connections remain a secondary table
+value; one client can hold several at once. Counts are refreshed when the operator
+loads or refreshes the dashboard or performs a management action, not by continuous
+polling. They are not historical-session or physical-device counts.
+
+This alpha has no configurable physical-device limit per credential. Copying one
+profile onto several devices shares its credential identity and user quota.
+The fixed ceilings of16 issued credentials and32 live transports per user are
+protective resource caps, not device entitlements. Issuing one profile per device
+allows separate revocation; it does not prevent that profile from being copied.
+The proxy's loopback peer address cannot identify a device, and public IP addresses
+also cannot reliably distinguish devices behind NAT or across network changes.
+
 ## Quota
 
 Sum forwarded TCP/UDP payload, both directions, across all profiles of one user.
