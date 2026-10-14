@@ -666,6 +666,11 @@ impl Engine {
                             .map(|c| (id, c))
                     })
                     .ok_or(Error::NotFound)?;
+                if c.revoked && matches!(request.command, Command::RotateCredential { .. }) {
+                    return Err(Error::Invalid(
+                        "Revoked profiles cannot be reactivated; issue a new profile",
+                    ));
+                }
                 c.generation = c
                     .generation
                     .checked_add(1)

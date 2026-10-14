@@ -133,7 +133,8 @@ async fn revoked_profiles_free_slots_without_a_lifetime_issuance_limit() {
         .audit(None)
         .unwrap()
         .iter()
-        .any(|entry| entry.operation == "credential_change"));
+        .any(|entry| entry.operation == "credential_change"
+            && entry.credential_id.as_ref() == first.as_ref()));
     assert!(
         engine.persistent.lock().unwrap().document.users[0]
             .credentials
@@ -187,6 +188,43 @@ async fn zero_limit_stops_issuance_and_out_of_range_limits_are_rejected() {
     set_limit(&engine, &user, Some(1)).await.unwrap();
     issue(&engine, &user).await.unwrap();
     assert!(set_limit(&engine, &user, Some(0)).await.is_err());
+}
+
+#[tokio::test]
+async fn rotating_a_revoked_profile_cannot_bypass_a_reduced_limit() {
+    let (_directory, engine, user) = fixture(Some(2)).await;
+    let revoked = issue(&engine, &user).await.unwrap().resource_id.unwrap();
+    issue(&engine, &user).await.unwrap();
+    engine
+        .apply(request(
+            &engine,
+            Command::RevokeCredential {
+                credential_id: revoked.clone(),
+            },
+        ))
+        .await
+        .unwrap();
+    set_limit(&engine, &user, Some(1)).await.unwrap();
+    let revision = engine.revision();
+    assert!(engine
+        .apply(request(
+            &engine,
+            Command::RotateCredential {
+                credential_id: revoked.clone(),
+            }
+        ))
+        .await
+        .is_err());
+    assert_eq!(engine.revision(), revision);
+    assert!(engine.export_credential(&revoked).is_err());
+    assert_eq!(
+        engine.users()[0]
+            .credentials
+            .iter()
+            .filter(|c| !c.revoked)
+            .count(),
+        1
+    );
 }
 
 #[tokio::test]
