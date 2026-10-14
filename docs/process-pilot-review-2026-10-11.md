@@ -206,3 +206,28 @@ creation, actual Android TCP/UDP, quota/revoke A with uninterrupted B, installed
 reboot and longer observation under real usage remain NOT VERIFIED. Earlier
 CI/process/idle-watch results are kept separate. No stable release or main merge
 was performed.
+
+## First manual client follow-up — 2026-10-14
+
+The operator created one VPN user and one profile in the panel, then reported a
+successful Android connection over their named home Wi-Fi network. They later
+reported Telegram and social networks working, with no apparent problems. These
+are user reports, not an agent-observed device test or a result for other networks.
+
+A read-only node check at2026-10-14T07:45:55Z found8 active TLS sessions and
+6063017 aggregate confirmed payload bytes for that single user/profile. Agent
+readiness was true, with no storage write failure. The managed agent/panel retained
+their initial PIDs with zero restarts; memory-high/max/OOM event counters were zero.
+Current RSS was10668KiB agent and23268KiB panel. These small-workload observations
+do not establish throughput, concurrent-user capacity or absence of memory leaks.
+
+The operator checked an external-IP website but did not report its returned
+address, so exit-IP matching remains unverified. The current client build, explicit
+Android DNS/UDP behavior, mobile network, network switching and real A/B isolation
+during quota/revoke still require acceptance. A live snapshot after user creation
+passed the admin check; off-host backup storage remains unverified.
+
+The separate stock endpoint was gracefully stopped/started shortly before this
+check and is active; the cause was not established here. No service changes or
+destructive user-policy tests were made during this follow-up. The installed
+managed pilot is not a stable release.
