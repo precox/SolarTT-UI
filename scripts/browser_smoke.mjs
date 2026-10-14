@@ -118,9 +118,11 @@ try {
   assert(await evaluate('fixtureCard().querySelectorAll(".device-card").length===1 && fixtureCard().querySelector(".add-device").disabled'),'one-slot device limit not reflected');
   assert(await evaluate('(async()=>{try{await command({op:"create_credential",user_id:fixtureCard().dataset.userId,label:"Over limit"});return false;}catch(e){return e.message.includes("Device limit reached");}})()'),'API bypassed the device limit');
   await evaluate('fixtureCard().querySelector(".access-settings").click()');
-  assert(await evaluate('(() => {const f=document.getElementById("edit-form");f.elements.device_limit.value="0";return f.elements.device_limit.min==="1" && !f.checkValidity();})()'),'lowering limit below issued profiles was offered');
-  await evaluate('(() => {const f=document.getElementById("edit-form");f.elements.device_limit.value="2";f.requestSubmit();})()');
+  assert(await evaluate('(() => {const f=document.getElementById("edit-form");f.elements.device_limit.value="0";return f.elements.device_limit.min==="1" && !f.elements.device_limit.checkValidity();})()'),'lowering limit below issued profiles was offered');
+  assert(await evaluate('(() => {const f=document.getElementById("edit-form");f.elements.device_limit.value="2";return f.checkValidity();})()'),'stored byte quota prevented editing the device limit');
+  await evaluate('document.getElementById("edit-form").requestSubmit()');
   await waitFor(async()=>await evaluate('!document.getElementById("edit").open && !fixtureCard().querySelector(".add-device").disabled'),'raised device limit');
+  assert(await evaluate('(async()=>{const result=await command({op:"users",after:null});return result.users.find(u=>u.id===fixtureCard().dataset.userId).policy.limit_bytes===Math.floor(0.001*1073741824);})()'),'device limit edit changed the stored byte quota');
   await issueDevice('Browser computer');
   assert(await evaluate('fixtureCard().querySelectorAll(".device-card").length===2 && fixtureCard().querySelector(".add-device").disabled'),'two-slot device limit not reflected');
   await evaluate('(() => {const d=fixtureCard().querySelector(".device-card");d.querySelector("details").open=true;d.querySelector(".danger").click();})()');

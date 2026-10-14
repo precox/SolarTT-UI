@@ -13,7 +13,7 @@
 <form id="create-form" class="policy-fields">
 <label class="full">Display name<input name="label" maxlength="128" required></label>
 <label>Device profile limit<input name="device_limit" type="number" inputmode="numeric" min="0" max="16" step="1" value="16" required><span class="field-help">0–16 profiles. One separate profile per device.</span></label>
-<label>Traffic quota, GiB<input name="quota" type="number" min="0" step="0.001" placeholder="Unlimited"></label>
+<label>Traffic quota, GiB<input name="quota" type="number" min="0" step="any" placeholder="Unlimited"></label>
 <label class="full">Expires at, local time<input name="expiry" type="datetime-local"></label>
 <label class="check full"><input name="monthly" type="checkbox">Reset traffic every calendar month</label>
 <button class="full" type="submit">Create user</button>
@@ -45,7 +45,7 @@
 <form id="edit-form" class="policy-fields">
 <label class="full">Device profile limit<input name="device_limit" type="number" inputmode="numeric" min="0" max="16" step="1" required><span id="device-limit-help" class="field-help"></span></label>
 <p class="small muted full">One profile per device. Copies of a profile cannot be distinguished. Revoke profiles before lowering the limit below the number already issued.</p>
-<label>Traffic quota, GiB<input name="quota" type="number" min="0" step="0.001" placeholder="Unlimited"></label>
+<label>Traffic quota, GiB<input name="quota" type="number" min="0" step="any" placeholder="Unlimited"></label>
 <label>Expires at, local time<input name="expiry" type="datetime-local"></label>
 <label class="check full"><input name="monthly" type="checkbox">Reset traffic every calendar month</label>
 <p id="edit-error" role="status" class="notice full hidden"></p><button class="full" type="submit">Save access settings</button>
