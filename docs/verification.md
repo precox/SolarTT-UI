@@ -161,3 +161,39 @@ Targeted shared-ledger and restored-payload checks also passed. A private24h
 observation has started, not completed. See
 [the process/CI report](process-pilot-review-2026-10-11.md) for exact artifacts,
 RSS, conservative live-snapshot charge and environment distinctions.
+
+
+## Connection labels and TLS dependency refresh — 2026-10-14
+
+UI commit `a45657f8c261084dd9fed30339fb8496be8b2376` replaces the prominent
+session total with connected profiles and labels the secondary table value
+TLS connections. A connected profile has at least one live authenticated TLS
+transport. This is not a physical-device count or a fixed transports-per-device
+ratio. Configurable device limits are not implemented.
+
+The first source audit found four newly published rustls advisories:
+RUSTSEC-2026-0346, -0347, -0348 and -0349. Commit
+`78dacb7f7ec65c14608e6cfea1256f1f00a2bd57` raises the patched upstream minimum
+and production lockfile to rustls 0.23.46. Registry dependency and feature metadata
+for 0.23.45 and 0.23.46 matched; the lockfile checksum came from the registry index.
+Locked builds and regression tests passed in CI.
+
+[Run 38629127109](https://github.com/precox/SolarTT-UI/actions/runs/38629127109)
+passed all five jobs: 139 functional tests, package/browser acceptance, the pinned
+alpha.1 upgrade/rollback/recovery pilot, and source/artifact secret checks. The
+production dependency audit reported zero known vulnerabilities; existing
+rustls-pemfile maintenance warnings remain visible. Its first native attempt timed
+out waiting 15 seconds for Chrome's debugger, before dashboard navigation. Rerunning
+failed jobs passed without code changes or weakened guards; the initial failure
+remains part of the run record.
+
+Development artifact `11925713199` has ZIP SHA-256
+`0f52a1eda4a30b1d6afbbd81dea13ab30a1b374e061957055a0e161ad9e3d424`.
+The existing operator pilot received this package after digest, payload metadata,
+maintainer-script and linkage checks. Only the panel restarted. Live login,
+info/users/logout, embedded asset equality, agent readiness, loopback listeners,
+public cover TLS and preserved configuration/key hashes passed. The VPN agent
+kept its previous process and executable; the new agent binary is installed on
+disk but its rustls fix is **not yet applied to the running endpoint**. A later
+agent restart requires an agreed interruption window. No device-limit feature,
+production quota/revoke exercise or stable-release claim is implied by this update.

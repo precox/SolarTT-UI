@@ -28,7 +28,7 @@ polling. They are not historical-session or physical-device counts.
 
 This alpha has no configurable physical-device limit per credential. Copying one
 profile onto several devices shares its credential identity and user quota.
-The fixed ceilings of16 issued credentials and32 live transports per user are
+The fixed ceilings of 16 issued credentials and 32 live transports per user are
 protective resource caps, not device entitlements. Issuing one profile per device
 allows separate revocation; it does not prevent that profile from being copied.
 The proxy's loopback peer address cannot identify a device, and public IP addresses
