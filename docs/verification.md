@@ -197,3 +197,41 @@ kept its previous process and executable; the new agent binary is installed on
 disk but its rustls fix is **not yet applied to the running endpoint**. A later
 agent restart requires an agreed interruption window. No device-limit feature,
 production quota/revoke exercise or stable-release claim is implied by this update.
+
+
+## Device profile limits and mobile provisioning — 2026-10-15
+
+Code `86827cd3edf4a5861add7915d85dff9621fd0b46` passed all five jobs in
+[run 38635048489](https://github.com/precox/SolarTT-UI/actions/runs/38635048489).
+148 functional tests passed: 47 portable (5 control, 3 panel, 38 policy and
+1 profile export), 95 patched upstream and 6 native transport/frame tests.
+The new policy cases cover issuance limits independent of TLS counts, lower-limit
+refusal, zero/range bounds, concurrent last-slot issuance, revoked-slot reuse,
+restart/restore, older edit requests and refusal to reactivate revoked profiles
+by rotating their credentials. A strict pre-feature policy decoder rejects an
+explicit new field rather than silently discarding the restriction.
+
+The package's real-browser scenario exercises mobile cards at 320/390 px and
+desktop at 1280 px, creation/export, direct API limit denial, raising the limit,
+revocation/replacement, XSS labels, clearing QR/link/app href, and logout. A lost
+response after successful creation is simulated; retrying the same request must
+return the original profile, not issue a duplicate. A browser failure in the
+preceding run exposed a real stored-byte-quota/number-step mismatch. The fix uses
+step=any and asserts that editing the device limit preserves the exact byte quota.
+Chrome startup now has a bounded 45-second wait; CI-only guards and all functional
+assertions remain in place. Package lifecycle, upgrade/rollback/recovery and
+source/artifact secret scans passed; the production dependency audit is clean.
+
+Artifact `11926839282` ZIP SHA-256:
+`3cb258dc5c605973028e1ee0725488d531a84edd1acffb9b5c1f161e7303d705`.
+The operator pilot received the verified package after a fresh live snapshot and
+a checked clean snapshot during cutover. Agent and panel now both run its exact
+binaries, including rustls 0.23.46. Existing policy/credential digests, revision,
+configuration, data key and admin hash were preserved; confirmed usage did not
+decrease. Other VPN/front-end/SSH services retained their recorded processes.
+Live login/info/users/logout, capability, embedded HTML/JS/CSS equality, loopback
+listeners, trusted TLS/H2 and both public covers passed. The first login probe
+exceeded 15 seconds while the node was busy; a later probe with a 45-second client
+timeout passed. CPU contention was observed, with no OOM or changed resource caps.
+This is a pilot update, not a stable release or an Android-device/anti-copy test.
+No production user was created, revoked or quota-limited by the acceptance checks.
