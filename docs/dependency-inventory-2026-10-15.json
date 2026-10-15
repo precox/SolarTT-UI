@@ -1,0 +1,109 @@
+{
+  "source": "86827cd3edf4a5861add7915d85dff9621fd0b46",
+  "package_count": 297,
+  "notice_files": 548,
+  "notice_bytes": 2870776,
+  "missing_packages": 0,
+  "missing_notices": 0,
+  "installed_notice_equality": true,
+  "manifest_sha256": "971349f4850817293c869daf47610e6d447aad192cbd1a1a86c473d97731fc37",
+  "license_expressions": {
+    "(MIT OR Apache-2.0) AND Unicode-3.0": 1,
+    "Apache-2.0": 7,
+    "Apache-2.0 / MIT": 1,
+    "Apache-2.0 AND ISC": 1,
+    "Apache-2.0 OR BSL-1.0": 1,
+    "Apache-2.0 OR ISC OR MIT": 4,
+    "Apache-2.0 OR MIT": 15,
+    "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT": 5,
+    "Apache-2.0/MIT": 2,
+    "BSD-2-Clause": 3,
+    "BSD-2-Clause OR Apache-2.0 OR MIT": 2,
+    "BSD-3-Clause": 2,
+    "BSD-3-Clause OR MIT OR Apache-2.0": 2,
+    "CC0-1.0 OR MIT-0 OR Apache-2.0": 1,
+    "ISC": 3,
+    "ISC AND (Apache-2.0 OR ISC)": 1,
+    "ISC AND (Apache-2.0 OR ISC) AND Apache-2.0 AND MIT AND BSD-3-Clause AND (Apache-2.0 OR ISC OR MIT) AND (Apache-2.0 OR ISC OR MIT-0)": 1,
+    "MIT": 48,
+    "MIT AND BSD-3-Clause": 1,
+    "MIT OR Apache-2.0": 155,
+    "MIT OR Apache-2.0 OR LGPL-2.1-or-later": 1,
+    "MIT/Apache-2.0": 20,
+    "Unicode-3.0": 18,
+    "Unlicense OR MIT": 2
+  },
+  "selected_native_crypto_records": [
+    {
+      "name": "aws-lc-rs",
+      "version": "1.18.1",
+      "license": "ISC AND (Apache-2.0 OR ISC)",
+      "notice_files": 1,
+      "nested_notice_files": 0
+    },
+    {
+      "name": "aws-lc-sys",
+      "version": "0.45.0",
+      "license": "ISC AND (Apache-2.0 OR ISC) AND Apache-2.0 AND MIT AND BSD-3-Clause AND (Apache-2.0 OR ISC OR MIT) AND (Apache-2.0 OR ISC OR MIT-0)",
+      "notice_files": 3,
+      "nested_notice_files": 2
+    },
+    {
+      "name": "boring",
+      "version": "4.22.0",
+      "license": "Apache-2.0",
+      "notice_files": 1,
+      "nested_notice_files": 0
+    },
+    {
+      "name": "boring-sys",
+      "version": "4.22.0",
+      "license": "MIT",
+      "notice_files": 3,
+      "nested_notice_files": 2
+    },
+    {
+      "name": "libsqlite3-sys",
+      "version": "0.30.1",
+      "license": "MIT",
+      "notice_files": 2,
+      "nested_notice_files": 1
+    },
+    {
+      "name": "quiche",
+      "version": "0.24.9",
+      "license": "BSD-2-Clause",
+      "notice_files": 2,
+      "nested_notice_files": 1
+    },
+    {
+      "name": "ring",
+      "version": "0.17.14",
+      "license": "Apache-2.0 AND ISC",
+      "notice_files": 6,
+      "nested_notice_files": 3
+    },
+    {
+      "name": "rustls",
+      "version": "0.23.46",
+      "license": "Apache-2.0 OR ISC OR MIT",
+      "notice_files": 3,
+      "nested_notice_files": 0
+    },
+    {
+      "name": "rustls-webpki",
+      "version": "0.103.15",
+      "license": "ISC",
+      "notice_files": 1,
+      "nested_notice_files": 0
+    },
+    {
+      "name": "trusttunnel",
+      "version": "0.1.0",
+      "license": "Apache-2.0",
+      "notice_files": 1,
+      "nested_notice_files": 0
+    }
+  ],
+  "scope": "inventory/provenance/file completeness only; no full obligation sign-off"
+}

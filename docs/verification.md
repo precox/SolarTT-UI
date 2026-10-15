@@ -259,3 +259,13 @@ explicit cohosting exception used by the operator pilot. It must not be mistaken
 for authorization to create a second deployment or publish an admin hostname.
 The release checklist records the tested profile-limit gate while keeping target
 load, complete client/network acceptance and license review gates open.
+
+
+### Notice inventory follow-up
+
+The installed artifact's 297 dependency records were reconciled with Cargo.lock,
+and all 548 notice files plus supplemental checksums were verified against the
+artifact and installed payload. No gaps were found in this structural inventory.
+The [inventory review](dependency-notices.md) preserves the distinction between
+file completeness and the still-open license-obligation release gate. No native
+build, dependency update or package installation was needed for this check.

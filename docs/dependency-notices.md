@@ -34,3 +34,23 @@ cargo metadata --locked --format-version 1 | python3 scripts/licenses.py
 Changing Cargo.lock may require updating supplemental notices, source commits
 and the review record. Do not copy notices from an unrelated release to satisfy
 the packaging gate.
+
+
+## Inventory reconciliation — 2026-10-15
+
+The exact `86827cd` artifact inventory was reconciled against the production
+Cargo.lock: all 297 non-SolarTT package name/version pairs matched, with no
+missing or duplicate records. Its 548 nonempty notice files (2,870,776 bytes)
+were present, and each installed notice matched the artifact byte for byte.
+Supplemental-source checksums also matched. Manifest SHA-256:
+`971349f4850817293c869daf47610e6d447aad192cbd1a1a86c473d97731fc37`.
+The [machine-readable review](dependency-inventory-2026-10-15.json) records counts,
+raw license expressions and selected native/crypto notice coverage.
+
+This review covers inventory, file presence and provenance. It does not choose
+between license alternatives, convert legacy slash-separated metadata into SPDX,
+or sign off on every native subcomponent's redistribution obligations. In
+particular, inspect the preserved nested notices for AWS-LC, BoringSSL, ring,
+quiche and bundled SQLite rather than relying only on the outer crate's license
+field. The full release obligation review therefore remains open; the inventory
+check is not a reason to mark the complete license gate passed.
