@@ -235,3 +235,27 @@ exceeded 15 seconds while the node was busy; a later probe with a 45-second clie
 timeout passed. CPU contention was observed, with no OOM or changed resource caps.
 This is a pilot update, not a stable release or an Android-device/anti-copy test.
 No production user was created, revoked or quota-limited by the acceptance checks.
+
+
+## Existing-node observation checkpoint — 2026-10-15 22:59 UTC
+
+The installed agent and panel still run the exact `86827cd` artifact binaries,
+with the same process identities since the 06:58 UTC cutover and no automatic
+restarts. At this approximately 16-hour checkpoint, both were ready, storage
+writes were healthy, cgroup memory high/max/OOM events were zero and their journals
+contained no error-priority entries. Confirmed aggregate payload increased since
+the cutover. This is passive operational evidence, not a sustained client-stream,
+throughput, loss or 24–72-hour observation test.
+
+Point-in-time RSS was about 18 MiB for the agent and 22 MiB for the panel. The
+SQLite main file was 53,248 bytes and WAL 156,592 bytes; a fresh live snapshot passed
+the matching-key/timezone check. No user/profile/policy mutation, service restart,
+proxy/SSH change, packet test or new CI run was performed for this checkpoint.
+Android UI/issuance and network-switch acceptance remain operator checks. The
+configured-device-limit count was still zero; existing users retained default 16.
+
+The persistent-pilot template now describes private SSH administration and the
+explicit cohosting exception used by the operator pilot. It must not be mistaken
+for authorization to create a second deployment or publish an admin hostname.
+The release checklist records the tested profile-limit gate while keeping target
+load, complete client/network acceptance and license review gates open.

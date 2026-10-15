@@ -11,8 +11,9 @@ TrustTunnel product.
 Version 0.1 is under development. Current development packages are alpha.2 with
 audited profile exports, bounded storage and schema-2 migration. Preserve a
 compatible snapshot before upgrading; alpha.1 cannot open schema 2. See
-[storage and audit semantics](docs/storage-and-audit.md). No production deployment
-or stability claims.
+[storage and audit semantics](docs/storage-and-audit.md). This is not a stable or
+production-ready release. A separately authorized operator pilot is running;
+[verification](docs/verification.md) records its scope and remaining gates.
 Actual alpha.1 → alpha.2 upgrade, guarded rollback and restore passed on a fresh
 GitHub-hosted VM: [pilot evidence](docs/pilot-review-2026-10-06.md).
 Android and sustained real-network acceptance remain pending; see the

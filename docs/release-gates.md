@@ -11,6 +11,7 @@
 - [x] Calendar periods, manual resets, limit changes and timezone behavior tested.
 - [x] Private destinations, metadata, local/own IPs and DNS results denied.
 - [x] Panel login, rate limits, CSRF, XSS, secret exports and UDS permissions tested.
+- [x] Per-user device profile limits enforced in the agent; lower-limit refusal, concurrent issuance and revoked-slot reuse tested.
 - [x] Database migrations, backup, guarded rollback and restore tested.
 - [x] Fresh GitHub-hosted VM install/upgrade/uninstall preserves an active unrelated service.
 - [x] CA verification, SNI passthrough, cover HTTP and TLS renewal tested.
@@ -34,3 +35,8 @@ alpha.1/alpha.2 packages, stopped-database rollback without lost quota charges,
 recovery with live payload and preservation of an active unrelated sentinel.
 The runner contains SDK/build tools; a minimal persistent Ubuntu VM, Android,
 operational ACME renewal and sustained observation remain manual requirements.
+
+Device-limit and mobile-card evidence is in [the 2026-10-15 verification record](verification.md).
+That limit counts non-revoked credentials, including offline profiles; copying
+one profile to several devices still uses one slot. Mobile viewport tests do not
+establish physical-device identity or replace Android/client network acceptance.
