@@ -81,7 +81,18 @@ try {
   }
   async function closeProfile() {
     await evaluate('document.getElementById("close-profile").click()');
-    await waitFor(async()=>await evaluate('exported === null && document.getElementById("deeplink").value === "" && !document.getElementById("qr").hasAttribute("src") && !document.getElementById("open-app").hasAttribute("href")'),'cleared profile');
+    await waitFor(async()=>await evaluate('exported === null && document.getElementById("deeplink").value === "" && !document.getElementById("qr").hasAttribute("src") && !document.getElementById("open-app").hasAttribute("href") && Array.from(document.querySelectorAll("#manual-settings input,#manual-settings textarea")).every(e=>e.value==="") && document.getElementById("manual-password").type==="password" && document.getElementById("show-password").getAttribute("aria-pressed")==="false" && document.getElementById("manual-ipv6").textContent==="" && document.getElementById("profile-status").textContent==="" && !document.querySelector(".profile-exports").open && !document.querySelector(".profile-format").open'),'cleared profile');
+  }
+  async function checkManualSetup(name) {
+    assert(await evaluate('(() => {const m=exported.manual,v=id=>document.getElementById("manual-"+id).value;return v("name")==='+JSON.stringify(name)+' && v("address")===m.addresses[0] && v("hostname")===m.hostname && v("sni")===m.custom_sni && v("username")===m.username && v("password")===m.password && v("dns")===m.dns_upstreams.join("\\n") && v("random")==="" && document.querySelector("[data-copy-field=manual-random]").disabled && m.upstream_protocol==="http2" && !m.skip_verification && !m.anti_dpi && m.certificate===null && document.getElementById("manual-ipv6").textContent===(m.has_ipv6?"On · checked":"Off · unchecked") && !document.querySelector(".profile-exports").open && document.getElementById("manual-password").type==="password";})()'),'manual Android fields differ from the exported profile');
+    assert(await evaluate('(() => {const b=document.getElementById("show-password"),p=document.getElementById("manual-password");b.click();const visible=p.type==="text" && b.getAttribute("aria-pressed")==="true";b.click();return visible && p.type==="password" && b.getAttribute("aria-pressed")==="false";})()'),'password visibility controls failed');
+    // Synthetic fixture only; copied values never leave this browser evaluation.
+    assert(await evaluate('(async()=>{const saved=Object.getOwnPropertyDescriptor(navigator,"clipboard");let copied=null;try{Object.defineProperty(navigator,"clipboard",{configurable:true,value:{writeText:async value=>{copied=value;}}});for(const b of document.querySelectorAll("[data-copy-field]")){if(b.disabled)continue;copied=null;b.click();await Promise.resolve();if(copied!==document.getElementById(b.dataset.copyField).value)return false;}Object.defineProperty(navigator,"clipboard",{configurable:true,value:{writeText:async()=>{throw new Error("Synthetic clipboard denied");}}});document.querySelector("[data-copy-field=manual-password]").click();await new Promise(resolve=>setTimeout(resolve,0));return document.getElementById("manual-password").type==="password" && document.getElementById("profile-status").textContent.includes("Tap Show password") && !document.getElementById("profile-status").textContent.includes(exported.manual.password);}finally{copied=null;if(saved)Object.defineProperty(navigator,"clipboard",saved);else delete navigator.clipboard;}})()'),'manual field copying or denied-clipboard fallback failed');
+    for(const width of [320,390,1280]) {
+      await viewport(width);
+      assert(await evaluate('(() => {const d=document.getElementById("profile");return d.scrollWidth<=d.clientWidth && d.getBoundingClientRect().left>=0 && d.getBoundingClientRect().right<=innerWidth && Array.from(d.querySelectorAll("button")).filter(b=>b.getClientRects().length).every(b=>{const r=b.getBoundingClientRect();return r.height>=44 && r.left>=0 && r.right<=innerWidth;});})()'),'manual setup overflowed or had undersized controls');
+    }
+    await viewport(390);
   }
   async function issueDevice(name,unknownResult=false) {
     await evaluate('fixtureCard().querySelector(".add-device").click()');
@@ -98,6 +109,7 @@ try {
     await waitFor(async()=>await evaluate('document.getElementById("profile").open && document.getElementById("deeplink").value.startsWith("tt://")'),'created profile export');
     assert(await evaluate('document.getElementById("qr").src.startsWith("data:image/svg+xml;base64,")'),'QR was not generated locally');
     assert(await evaluate('document.getElementById("open-app").getAttribute("href").startsWith("tt://")'),'app link missing');
+    await checkManualSetup(name);
     await closeProfile();
   }
   await call('Page.enable');
@@ -145,7 +157,7 @@ try {
   await evaluate('document.getElementById("logout").click()');
   await waitFor(async()=>await visible('login') && !await visible('dashboard'),'logout');
   assert(await evaluate('fetch("/api/session").then(r=>r.status===401)'),'logout session remained valid');
-  console.log('Browser mobile cards, device limits, idempotent issuance, revoke/reissue, profile clearing, HTML label and logout checks passed');
+  console.log('Browser manual Android setup/copy/privacy, mobile cards, device limits, idempotent issuance, revoke/reissue, profile clearing, HTML label and logout checks passed');
 } finally {
   if (socket) socket.close();
   if (chrome.exitCode === null && chrome.signalCode === null) {

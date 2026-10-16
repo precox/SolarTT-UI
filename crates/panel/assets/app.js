@@ -71,6 +71,12 @@ async function openProfile(credentialId,label) {
   clearProfile();
   const result=await command({op:"export_profile",credential_id:credentialId});
   if(!result.deeplink.startsWith("tt://"))throw new Error("Unsupported profile link");
+  const m=result.manual;
+  if(!m||m.addresses.length!==1||m.upstream_protocol!=="http2"||m.skip_verification||m.anti_dpi||m.certificate!==null)throw new Error("Manual settings are unavailable. Update the panel.");
+  const fields={"manual-name":label,"manual-address":m.addresses[0],"manual-hostname":m.hostname,"manual-sni":m.custom_sni,"manual-username":m.username,"manual-password":m.password,"manual-dns":m.dns_upstreams.join("\n"),"manual-random":m.client_random_prefix??""};
+  for(const [id,value] of Object.entries(fields))$(id).value=value;
+  $("manual-ipv6").textContent=m.has_ipv6?"On · checked":"Off · unchecked";
+  document.querySelectorAll("[data-copy-field]").forEach(b=>{b.disabled=!$(b.dataset.copyField).value;b.setAttribute("aria-label","Copy "+document.querySelector('label[for="'+b.dataset.copyField+'"]').textContent);});
   exported=result;$("profile-title").textContent="Connect "+label;
   $("deeplink").value=result.deeplink;$("open-app").href=result.deeplink;
   $("qr").src="data:image/svg+xml;base64,"+btoa(unescape(encodeURIComponent(result.qr_svg)));
@@ -86,7 +92,7 @@ function renderDevice(credential) {
   const more=node("details",undefined,"device-menu"),summary=node("summary","More");summary.setAttribute("aria-label","More actions for "+credential.label);
   const options=node("div",undefined,"menu-options");
   options.append(
-    action("Change password",async()=>{if(confirm("Replace this profile's password and close its TLS connections? You will need to import the new profile.")){await command({op:"rotate_credential",credential_id:credential.id});await refresh();await openProfile(credential.id,credential.label);}}),
+    action("Change password",async()=>{if(confirm("Replace this profile's password and close its TLS connections? You will need to update the server settings in your app.")){await command({op:"rotate_credential",credential_id:credential.id});await refresh();await openProfile(credential.id,credential.label);}}),
     action("Revoke access",async()=>{if(confirm("Revoke "+credential.label+"? Its connections will close and its device slot will become available.")){await command({op:"revoke_credential",credential_id:credential.id});await refresh();}},"danger")
   );
   more.append(summary,options);controls.append(connect,more);card.append(heading,controls);return card;
@@ -113,7 +119,7 @@ function renderUser(user) {
   deviceHeading.append(node("h3","Devices"),add);
   const grid=node("div",undefined,"device-grid");
   for(const credential of active)grid.append(renderDevice(credential));
-  if(!active.length)grid.append(node("p",limit===0?"Issuing is disabled. Raise the device limit in Access settings.":"No device profiles yet. Add a device to get its connection link and QR code.","empty-devices"));
+  if(!active.length)grid.append(node("p",limit===0?"Issuing is disabled. Raise the device limit in Access settings.":"No device profiles yet. Add a device to get its server settings.","empty-devices"));
   card.append(heading,metrics,deviceHeading,grid);
   const revoked=user.credentials.filter(c=>c.revoked);
   if(revoked.length) {const list=node("details",undefined,"revoked-list");list.append(node("summary","Revoked profiles · "+revoked.length));for(const credential of revoked)list.append(node("div",credential.label+" · access revoked","revoked-item"));card.append(list);}
@@ -162,7 +168,7 @@ $("issue-form").addEventListener("submit",async e=>{
   try {
     const result=await sendCommand(issueAttempt),label=issueAttempt.command.label;
     issueAttempt=null;f.elements.label.readOnly=false;$("issue").close();f.reset();await refresh();
-    try {await openProfile(result.resource_id,label);}catch(e){notice("Device profile created. Open its Connection profile button to retrieve the link. "+e.message);}
+    try {await openProfile(result.resource_id,label);}catch(e){notice("Device profile created. Open its Connection profile button to retrieve its server settings. "+e.message);}
   } catch(e) {
     if(e.definitive)issueAttempt=null;
     f.elements.label.readOnly=!!issueAttempt;$("issue-submit").textContent=issueAttempt?"Retry creation":"Create connection profile";
@@ -174,9 +180,21 @@ $("cancel-issue").addEventListener("click",()=>$("issue").close());
 $("cancel-edit").addEventListener("click",()=>$("edit").close());
 $("logout").addEventListener("click",async()=>{try{await json("/api/logout",{});issueAttempt=null;location.reload();}catch(e){notice(e.message);}});
 $("refresh").addEventListener("click",()=>refresh().catch(e=>notice(e.message)));
-function clearProfile(){exported=null;$("deeplink").value="";$("qr").removeAttribute("src");$("open-app").removeAttribute("href");$("profile-status").textContent="";document.querySelector(".profile-format").open=false;}
+function clearProfile(){
+  exported=null;$("deeplink").value="";$("qr").removeAttribute("src");$("open-app").removeAttribute("href");$("profile-status").textContent="";
+  document.querySelectorAll("#manual-settings input,#manual-settings textarea").forEach(e=>{e.value="";});
+  document.querySelectorAll("[data-copy-field]").forEach(b=>{b.disabled=true;});
+  $("manual-ipv6").textContent="";$("manual-password").type="password";$("show-password").textContent="Show password";$("show-password").setAttribute("aria-pressed","false");
+  for(const selector of [".profile-format",".profile-exports"])document.querySelector(selector).open=false;
+}
 $("close-profile").addEventListener("click",()=>$("profile").close());$("profile").addEventListener("close",clearProfile);
-$("copy-link").addEventListener("click",async()=>{if(!exported)return;try{await navigator.clipboard.writeText($("deeplink").value);$("profile-status").textContent="Connection link copied.";}catch{document.querySelector(".profile-format").open=true;$("deeplink").select();$("profile-status").textContent="Select and copy the connection link manually.";}});
+$("show-password").addEventListener("click",()=>{if(!exported)return;const visible=$("manual-password").type==="password";$("manual-password").type=visible?"text":"password";$("show-password").textContent=visible?"Hide password":"Show password";$("show-password").setAttribute("aria-pressed",String(visible));});
+document.querySelectorAll("[data-copy-field]").forEach(b=>b.addEventListener("click",async()=>{
+  if(!exported)return;const field=$(b.dataset.copyField),label=document.querySelector('label[for="'+field.id+'"]').textContent;
+  try{await navigator.clipboard.writeText(field.value);if(exported)$("profile-status").textContent=label+" copied.";}
+  catch{if(!exported)return;field.focus();field.select();$("profile-status").textContent=field.type==="password"?"Copy is unavailable. Tap Show password, then select and copy it manually.":"Copy is unavailable. Select and copy "+label+" manually.";}
+}));
+$("copy-link").addEventListener("click",async()=>{if(!exported)return;try{await navigator.clipboard.writeText($("deeplink").value);if(exported)$("profile-status").textContent="Connection link copied.";}catch{if(!exported)return;document.querySelector(".profile-exports").open=true;document.querySelector(".profile-format").open=true;$("deeplink").select();$("profile-status").textContent="Select and copy the connection link manually.";}});
 $("download-toml").addEventListener("click",()=>{if(!exported)return;const url=URL.createObjectURL(new Blob([exported.toml],{type:"text/plain"}));const a=node("a");a.href=url;a.download="trusttunnel-profile.toml";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
 async function audit(reset) {
   if(reset){auditBefore=null;$("audit-rows").replaceChildren();}

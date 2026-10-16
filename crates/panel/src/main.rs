@@ -11,7 +11,7 @@ use axum::{
     Json, Router,
 };
 use rand::{rngs::OsRng, RngCore};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use solartt_control_api::{
     Request as ControlRequest, Response as ControlResponse, MAX_FRAME_BYTES,
 };
@@ -51,6 +51,54 @@ struct App {
 struct Login {
     username: String,
     password: String,
+}
+
+/// UI fields derived from the audited export, never from a second credential read.
+/// This extends the panel HTTP response without changing the agent protocol.
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct ManualSetup {
+    hostname: String,
+    addresses: Vec<String>,
+    username: String,
+    password: String,
+    custom_sni: String,
+    has_ipv6: bool,
+    skip_verification: bool,
+    upstream_protocol: String,
+    anti_dpi: bool,
+    dns_upstreams: Vec<String>,
+    #[serde(default)]
+    client_random_prefix: Option<String>,
+    #[serde(default)]
+    certificate: Option<String>,
+}
+
+fn control_response(response: ControlResponse) -> Response {
+    let solartt_control_api::ResultData::Profile { toml, .. } = &response.result else {
+        return Json(response).into_response();
+    };
+    let Ok(manual) = toml::from_str::<ManualSetup>(toml) else {
+        return error(StatusCode::BAD_GATEWAY, "Profile settings are unavailable");
+    };
+    // Do not present instructions that silently alter a profile's trust/protocol settings.
+    if manual.addresses.len() != 1
+        || manual.addresses[0].is_empty()
+        || manual.hostname.is_empty()
+        || manual.username.is_empty()
+        || manual.password.is_empty()
+        || manual.upstream_protocol != "http2"
+        || manual.skip_verification
+        || manual.anti_dpi
+        || manual.certificate.is_some()
+    {
+        return error(StatusCode::BAD_GATEWAY, "Profile settings are unsupported");
+    }
+    let Ok(mut body) = serde_json::to_value(response) else {
+        return error(StatusCode::BAD_GATEWAY, "Profile settings are unavailable");
+    };
+    body["result"]["manual"] = serde_json::json!(manual);
+    Json(body).into_response()
 }
 fn random_token() -> String {
     let mut bytes = [0u8; 32];
@@ -221,7 +269,7 @@ async fn command(
         return error(StatusCode::BAD_REQUEST, "Invalid request ID");
     }
     match tokio::time::timeout(Duration::from_secs(15), control(&app.config, &req)).await {
-        Ok(Ok(response)) => Json(response).into_response(),
+        Ok(Ok(response)) => control_response(response),
         _ => error(
             StatusCode::SERVICE_UNAVAILABLE,
             "Agent unavailable. Retry using the same request ID.",
@@ -395,6 +443,68 @@ mod tests {
             .header("content-type", "application/json")
             .body(Body::from(serde_json::to_vec(&data).unwrap()))
             .unwrap()
+    }
+    fn profile_response(text: String) -> ControlResponse {
+        ControlResponse {
+            request_id: "manual-fixture".into(),
+            desired_revision: 1,
+            applied_revision: 1,
+            result: solartt_control_api::ResultData::Profile {
+                deeplink: "tt://synthetic-fixture".into(),
+                toml: text,
+                qr_svg: "<svg/>".into(),
+            },
+        }
+    }
+    const MANUAL_TOML: &str = r#"
+hostname = "media.example.org"
+addresses = ["192.0.2.1:443"]
+username = "fixture\"account"
+password = "synthetic\\password\nline"
+custom_sni = "media.example.org"
+has_ipv6 = false
+skip_verification = false
+upstream_protocol = "http2"
+anti_dpi = false
+dns_upstreams = ["1.1.1.1", "https://dns.example.org/dns-query"]
+"#;
+    #[tokio::test]
+    async fn manual_setup_decodes_exported_values_without_toml_quotes_or_escapes() {
+        let response = control_response(profile_response(MANUAL_TOML.into()));
+        assert_eq!(response.status(), 200);
+        let bytes = axum::body::to_bytes(response.into_body(), 16384)
+            .await
+            .unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        let manual = &value["result"]["manual"];
+        assert_eq!(manual["username"], "fixture\"account");
+        assert_eq!(manual["password"], "synthetic\\password\nline");
+        assert_eq!(manual["addresses"][0], "192.0.2.1:443");
+        assert_eq!(manual["hostname"], manual["custom_sni"]);
+        assert_eq!(manual["has_ipv6"], false);
+        assert_eq!(manual["skip_verification"], false);
+        assert_eq!(manual["dns_upstreams"].as_array().unwrap().len(), 2);
+        assert!(manual["client_random_prefix"].is_null());
+        assert!(manual["certificate"].is_null());
+        assert_eq!(value["result"]["toml"], MANUAL_TOML);
+    }
+    #[tokio::test]
+    async fn unsupported_or_invalid_manual_exports_fail_without_returning_secrets() {
+        for text in [
+            "password = \"synthetic-sensitive-value\"".to_string(),
+            MANUAL_TOML.replace("skip_verification = false", "skip_verification = true"),
+            MANUAL_TOML.replace("http2", "http3"),
+            MANUAL_TOML.replace("[\"192.0.2.1:443\"]", "[]"),
+            format!("{MANUAL_TOML}\ncertificate = \"synthetic-certificate\""),
+        ] {
+            let response = control_response(profile_response(text));
+            assert_eq!(response.status(), 502);
+            let bytes = axum::body::to_bytes(response.into_body(), 4096)
+                .await
+                .unwrap();
+            let body = std::str::from_utf8(&bytes).unwrap();
+            assert!(!body.contains("synthetic") && !body.contains("tt://"));
+        }
     }
     #[test]
     fn canonical_origin_and_ipv6_authority() {

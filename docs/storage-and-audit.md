@@ -17,7 +17,11 @@ Retries may prepare another profile and record another event. Local copy/downloa
 of an already exported browser profile is not a new server export.
 
 Exports serialize with policy mutations and credential rotation. The browser still
-clears profile/QR data when the dialog closes and uses no external QR service.
+clears profile/QR/manual-field data when the dialog closes and uses no external QR
+service. The panel derives its manual Android fields by parsing the same audited
+TOML response; it does not read credentials again or change the agent protocol.
+Passwords start hidden and return to hidden on the next opening. Field copies
+stay local to the browser/device clipboard and never become audit fields.
 Audit events do not advance the policy revision or consume traffic allowance.
 
 ## Retention defaults

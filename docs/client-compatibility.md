@@ -15,12 +15,44 @@ identity; it is not a claim of a signed SolarTT release.
 
 ## Android acceptance on a separately approved pilot
 
+### Manual server setup
+
+The panel's **Connection profile** dialog starts with **Manual setup · Android**.
+In the Android app, choose **Servers → Add server** and enter the matching fields.
+Each Copy button copies one decoded value, without TOML quotes or escape syntax:
+
+| Android field | Panel value / action |
+| --- | --- |
+| Server name | Device name (a local display label) |
+| Address | Exported endpoint address, including port |
+| Domain name from server certificate | Exported certificate hostname |
+| Custom SNI | Exported SNI |
+| Username / Password | Separate credential fields; password starts hidden |
+| Protocol | HTTP/2 |
+| Routing profile | Default profile |
+| DNS server addresses | Copy the full field, one address per line |
+| Client Random | Leave blank for current SolarTT exports |
+| Self-signed certificate | Leave empty; do not import a certificate |
+| Allow IPv6 connections via the server | Follow the displayed switch value; current exports disable it |
+
+Tap **Add** in the app. The instructions are derived from the same audited export
+as the TOML/link, with certificate verification enabled. Unknown trust or protocol
+settings fail closed rather than producing misleading manual instructions.
+**Other export formats** contains link/QR and TOML for compatible clients; this
+does not imply that a particular Android build supports imports. If clipboard
+access is denied, select the field and copy manually. Password visibility is an
+explicit action. Closing the dialog clears its secret fields; a copied value
+remains in the device clipboard until the device/user clears it.
+
+### Acceptance steps
+
 An existing Android connection to an unmodified TrustTunnel endpoint does not
 verify compatibility with the managed SolarTT build. Record the actual app
 version, Android version, network/operator, endpoint build and test time.
 
-1. Issue two users, A and B, with separate credentials. Import A's generated
-   link/QR into the official Android app. Use HTTP/2 and disable IPv6 for v0.1.
+1. On the separately approved fixture, issue two users, A and B, with separate
+   credentials. Add A's server manually using the panel's fields. Use HTTP/2 and
+   disable IPv6 for v0.1. Import link/QR only if the tested app supports it.
    The endpoint address, certificate hostname and SNI must match the reviewed
    pilot configuration. Keep certificate verification enabled.
 2. Verify normal sites and Telegram and record the external IPv4. Check DNS and

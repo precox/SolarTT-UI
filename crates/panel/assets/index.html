@@ -33,11 +33,29 @@
 </dialog>
 <dialog id="profile" aria-labelledby="profile-title">
 <div class="heading"><div><span class="eyebrow">READY TO CONNECT</span><h2 id="profile-title">Connection profile</h2></div><button id="close-profile" class="quiet">Close</button></div>
-<p class="muted">Open TrustTunnel on this device, or scan the QR code on another device.</p>
-<a id="open-app" class="button wide">Open TrustTunnel</a><img id="qr" alt="TrustTunnel profile QR code">
-<div class="profile-buttons"><button id="copy-link">Copy link</button><button id="download-toml" class="quiet">Download TOML</button></div>
+<h3>Manual setup · Android</h3>
+<p class="muted">In TrustTunnel, open Servers → Add server. Copy these values into the matching fields, then tap Add.</p>
+<div id="manual-settings" class="manual-settings">
+<div class="manual-field"><label for="manual-name">Server name</label><div class="manual-value"><input id="manual-name" readonly autocomplete="off"><button class="quiet" data-copy-field="manual-name">Copy</button></div></div>
+<div class="manual-field"><label for="manual-address">Address</label><div class="manual-value"><input id="manual-address" readonly autocomplete="off"><button class="quiet" data-copy-field="manual-address">Copy</button></div></div>
+<div class="manual-field"><label for="manual-hostname">Domain name from server certificate</label><div class="manual-value"><input id="manual-hostname" readonly autocomplete="off"><button class="quiet" data-copy-field="manual-hostname">Copy</button></div></div>
+<div class="manual-field"><label for="manual-sni">Custom SNI</label><div class="manual-value"><input id="manual-sni" readonly autocomplete="off" placeholder="Leave blank"><button class="quiet" data-copy-field="manual-sni">Copy</button></div></div>
+<div class="manual-field"><label for="manual-username">Username</label><div class="manual-value"><input id="manual-username" readonly autocomplete="off" spellcheck="false"><button class="quiet" data-copy-field="manual-username">Copy</button></div></div>
+<div class="manual-field"><label for="manual-password">Password</label><div class="manual-value"><input id="manual-password" type="password" readonly autocomplete="off" spellcheck="false"><button class="quiet" data-copy-field="manual-password">Copy</button></div><button id="show-password" class="quiet" aria-pressed="false" aria-controls="manual-password">Show password</button></div>
+<div class="manual-choice"><span>Protocol</span><strong>HTTP/2</strong></div>
+<div class="manual-choice"><span>Routing profile</span><strong>Default profile</strong></div>
+<div class="manual-field"><label for="manual-dns">DNS server addresses, one per line</label><div class="manual-value"><textarea id="manual-dns" rows="3" readonly spellcheck="false" placeholder="Leave blank to use the app default"></textarea><button class="quiet" data-copy-field="manual-dns">Copy</button></div></div>
+<div class="manual-field"><label for="manual-random">Client Random, hex sequence</label><div class="manual-value"><input id="manual-random" readonly autocomplete="off" placeholder="Leave blank"><button class="quiet" data-copy-field="manual-random">Copy</button></div></div>
+<div class="manual-choice"><span>Self-signed certificate, PEM file</span><strong>Leave empty · do not import</strong></div>
+<div class="manual-choice"><span>Allow IPv6 connections via the server</span><strong id="manual-ipv6"></strong></div>
+</div>
 <p id="profile-status" role="status" class="small muted"></p>
+<details class="profile-exports"><summary>Other export formats</summary>
+<p class="small muted">For clients that support importing profiles. If your Android app only has manual setup, use the fields above.</p>
+<a id="open-app" class="button wide">Open link in a compatible client</a><img id="qr" alt="TrustTunnel profile QR code">
+<div class="profile-buttons"><button id="copy-link">Copy link</button><button id="download-toml" class="quiet">Download TOML (CLI)</button></div>
 <details class="profile-format"><summary>View connection link</summary><label>TrustTunnel link<textarea id="deeplink" rows="3" readonly></textarea></label></details>
+</details>
 <p class="small muted">This profile contains a password. Share it only with its owner.</p>
 </dialog>
 <dialog id="edit" aria-labelledby="edit-title">
