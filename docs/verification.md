@@ -269,3 +269,52 @@ artifact and installed payload. No gaps were found in this structural inventory.
 The [inventory review](dependency-notices.md) preserves the distinction between
 file completeness and the still-open license-obligation release gate. No native
 build, dependency update or package installation was needed for this check.
+
+## Manual Android server settings — 2026-10-16
+
+Code `379bb44` adds decoded, individually copyable Android server settings to the
+Connection profile dialog. Final source/build `b034514c3c41d3639f28b9e19036475efefa8f9c`
+includes the browser assertion correction. The manual card is primary; link/QR and
+TOML remain under Other export formats for compatible clients. This does not
+claim that a particular Android app supports profile import.
+
+The panel parses the existing audited TOML response into typed fields, preserving
+quoted/escaped credentials as their decoded values. It never reads credentials a
+second time or changes the agent protocol. Unsupported trust/protocol settings
+produce generic errors without echoing the export. The password starts hidden;
+close clears all manual fields, export data and visibility state. Copy failure
+keeps the password hidden and offers explicit manual selection. Clipboard content
+is outside dialog clearing, as described in client-compatibility.md.
+
+[CI run 38871492066](https://github.com/precox/SolarTT-UI/actions/runs/38871492066)
+passed all five jobs: security, portable, native, legacy and pilot. There are
+150 functional tests (49 portable, 6 managed, 95 upstream), plus the separately
+invoked release measurement and package/browser/upgrade scenarios. New panel tests
+verify exact TOML decoding and generic rejection without secret disclosure. The
+browser fixture verifies field mapping, copying each nonempty field, clipboard
+rejection, explicit password visibility, clearing between three issuances, and
+modal fit/touch controls at 320/390/1280 px. Existing device-limit and quota-value
+preservation checks remain enabled. The initial run 38870769981 failed because a
+new browser assertion embedded a literal newline in evaluated source; b034514
+uses String.fromCharCode(10), and final browser/package checks pass.
+
+Artifact 12033309523, ZIP SHA-256
+`ef3172ad897d05dc9547fac36d8fcf462907fd2ca0b953ae0f24e81fe438e4e8`,
+was verified against the Actions digest, internal SHA256SUMS, upstream pin,
+Cargo.lock and patch hashes. Maintainer scripts and systemd units match reviewed
+source; units match the installed ones; ELF libraries resolve. Agent and admin
+ELF hashes are unchanged from the previous pilot. Only the panel ELF differs:
+`a0813d28e6012a9946f397dc13e39151ad3ba4af353526bbf73a01ba1583ddff`.
+
+The approved existing pilot was updated on 2026-10-16; only the panel was restarted
+at 08:13:36 UTC. Authenticated login/info/users/logout, exact embedded HTML/JS/CSS,
+private no-store UI, verified TLS/H2 and public cover 200/API-login 404 passed.
+A first immediate HTTP check raced the Type=simple listener startup and received
+connection refused; a bounded readiness wait and authenticated checks then passed,
+with NRestarts=0. The agent PID/start time and running ELF are unchanged. Protected
+configuration, key/admin-hash file contents and permissions, canonical policy and
+credential document are unchanged; quota accounting is preserved. A fresh SQLite
+backup was validated with its matching key/timezone/schema/revision. No live
+profile export, new credentials, quota/revoke/rotation or owner-device actions
+were performed for acceptance. Real manual entry on the user's Android device
+remains NOT VERIFIED; CI browser results do not substitute for it.
