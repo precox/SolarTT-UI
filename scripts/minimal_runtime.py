@@ -140,7 +140,11 @@ def main():
                 'installed_payload_bytes':sum(p.stat().st_size for p in list(Path('/usr/bin').glob('solartt-*')) + list(DOC.rglob('*')) if p.is_file()),
                 'sampled_rss_kib':rss, 'checks':['declared_runtime_dependencies','packaged_configuration','dedicated_accounts','admin_login','unix_control_readiness','profile_limit_and_manual_export','verified_tls_h2','panel_key_denial','backup_check'],
                 'scope':'Process/runtime acceptance; systemd install/upgrade/removal is tested separately on a GitHub VM. No sustained capacity or Android claim.'}
-            Path('/report/minimal-runtime.json').write_text(json.dumps(result,indent=2)+'\n')
+            report = Path('/report/minimal-runtime.json')
+            report.write_text(json.dumps(result,indent=2)+'\n')
+            # The container runs as root; expose only this sanitized public report
+            # to the unprivileged artifact uploader, never private fixture data.
+            report.chmod(0o644)
             print('Minimal Ubuntu runtime: PASS; no compiler, Rust, Node or Chromium installed')
         finally:
             for proc in reversed(processes):

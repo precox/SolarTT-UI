@@ -38,6 +38,12 @@ dpkg-deb --contents solartt-ui_0.1.0~alpha3_amd64.deb
 sudo apt-get install ./solartt-ui_0.1.0~alpha3_amd64.deb
 ```
 
+Some minimized images configure dpkg to discard `/usr/share/doc`, including
+package examples and license notices. Preserve SolarTT documentation in that
+image policy (or extract it from the verified deb) before the configuration steps.
+The minimal-runtime CI fixture explicitly preserves the shipped documentation;
+it still has no compiler, Rust, Node or Chromium.
+
 The package creates dedicated service accounts and directories. It does not
 start services, bind public ports, change HAProxy/Caddy or alter firewall rules.
 The checksum file protects against accidental corruption; it is not a signed
