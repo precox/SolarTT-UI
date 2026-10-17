@@ -76,3 +76,19 @@ Repeat the relevant connectivity checks on Wi-Fi and mobile networks. Report
 observable outcomes and measurement limits; connection failure alone does not
 identify a censorship mechanism or prove a TSPU hypothesis. ACME renewal and
 proxy coexistence require the reviewed pilot's separate operational checks.
+
+### Android diagnostic logging
+
+Record both the logging level and sensitive-data mode. In the official
+[Flutter client v1.2.0 source](https://github.com/TrustTunnel/TrustTunnelFlutterClient/blob/78f44c1eb19197202225fa260e2b4beed4487503/lib/feature/server/servers/widget/servers_card.dart#L104),
+**Sensitive data: Excluded** forces the VPN core to the error level even when
+**Detailed** is selected. Application navigation/state messages can therefore
+be detailed while DNS/TLS/stream diagnostics remain absent. A quiet exported
+core log does not prove error-free forwarding, and restarting the app does not
+change this selection rule.
+
+Full transport debug logging can contain credentials and browsing metadata.
+Use a disposable diagnostic setup and redact locally before sharing; never
+publish raw logs or working profiles. A `Connected` state, successful TLS
+handshake or downloaded HTML alone does not establish complete page/resource
+loading. Include a one-way large-response check alongside echo-style tests.

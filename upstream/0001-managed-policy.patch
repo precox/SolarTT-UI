@@ -578,23 +578,41 @@ diff --git a/lib/src/tunnel.rs b/lib/src/tunnel.rs
 diff --git a/lib/src/pipe.rs b/lib/src/pipe.rs
 --- a/lib/src/pipe.rs
 +++ b/lib/src/pipe.rs
-@@ -92,6 +92,7 @@
+@@ -90,8 +90,10 @@
+     sink: Box<dyn Sink>,
+     update_metrics: F,
      pending_chunk: Option<Data>,
++    pending_writable: bool,
      direction: SimplexDirection,
      last_activity: Instant,
 +    managed_session: Option<std::sync::Arc<dyn crate::managed::Session>>,
  }
  
  pub(crate) struct Error<T> {
-@@ -136,6 +137,7 @@
+@@ -134,8 +136,10 @@
+             sink,
+             update_metrics,
              pending_chunk: Default::default(),
++            pending_writable: false,
              direction,
              last_activity: Instant::now(),
 +            managed_session: None,
          }
      }
  
-@@ -179,12 +181,45 @@
+@@ -155,7 +159,10 @@
+                     log_dir!(trace, self.source.id(), self.direction, "TCP data: {}", x);
+                     Ok(x)
+                 } else {
+-                    self.sink.wait_writable().await?;
++                    if self.pending_writable {
++                        self.sink.wait_writable().await?;
++                    }
++                    self.pending_writable = false;
+                     let pending = self
+                         .pending_chunk
+                         .take()
+@@ -179,12 +186,48 @@
  
              match data {
                  Data::Chunk(bytes) => {
@@ -627,6 +645,9 @@ diff --git a/lib/src/pipe.rs b/lib/src/pipe.rs
                          .write(bytes)
                          .map_err(|e| io_to_pipe_error(id, e))?;
 -                    let sent = data_len - unsent_data.len();
++                    // Only sink backpressure needs a writable notification. A
++                    // quota-only tail must write again to request fresh H2 capacity.
++                    self.pending_writable = !unsent.is_empty();
 +                    let sent = allowed - unsent.len();
 +                    if let Some(permit) = permit {
 +                        permit.finish(sent).map_err(|e| io_to_pipe_error(id, e))?;
@@ -643,7 +664,7 @@ diff --git a/lib/src/pipe.rs b/lib/src/pipe.rs
                      (self.update_metrics)(self.direction, sent);
                      self.source
                          .consume(sent)
-@@ -231,6 +266,14 @@
+@@ -231,6 +274,14 @@
          }
      }
  
@@ -658,6 +679,7 @@ diff --git a/lib/src/pipe.rs b/lib/src/pipe.rs
      pub async fn exchange(&mut self, timeout: Duration) -> io::Result<()> {
          let id = self.left_pipe.source.id();
          loop {
+
 diff --git a/lib/src/udp_pipe.rs b/lib/src/udp_pipe.rs
 --- a/lib/src/udp_pipe.rs
 +++ b/lib/src/udp_pipe.rs

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Fix a managed H2 download stall when a traffic-accounting lease splits a
+  response buffer after the sink has consumed all requested flow-control capacity.
+  Quota-only tails now request new capacity; actual sink backpressure still waits.
+- Add a real one-way 1-MiB TLS/H2 download regression for limited and unlimited
+  users, with CI proving failure before the fix and success after it.
+- Document the Android client's separate application/core logging levels.
+
 ## 0.1.0-alpha.4 — 2026-10-17 (current public alpha)
 
 - Uses a GitHub-safe deb filename while preserving internal Debian prerelease ordering.

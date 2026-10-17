@@ -271,6 +271,42 @@ allowed_sni = ["fixture.example.org"]
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn h2_one_way_download_crosses_lease_boundary() {
+    // The request byte offsets the shared 256-KiB lease from the response's
+    // read chunks. A quota-only tail must issue a fresh H2 capacity request;
+    // waiting first can deadlock after the previous request was fully consumed.
+    for limit in [None, Some(2 * 1024 * 1024)] {
+        let fixture = Fixture::new().await;
+        let (user, _, basic) = account(&fixture.engine, "one-way download", limit).await;
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let expected = vec![0x5a; 1024 * 1024];
+        let response = expected.clone();
+        let _server = Task(tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = [0; 1];
+            socket.read_exact(&mut request).await.unwrap();
+            assert_eq!(request, [b'!']);
+            socket.write_all(&response).await.unwrap();
+            socket.shutdown().await.unwrap();
+        }));
+        let client = fixture.client().await;
+        let (status, mut tx, mut rx) = client.request(&address.to_string(), &basic).await;
+        assert_eq!(status, 200);
+        tx.send_data(Bytes::from_static(b"!"), false).unwrap();
+        assert_eq!(payload(&mut rx, expected.len()).await, expected);
+        let view = fixture
+            .engine
+            .users()
+            .into_iter()
+            .find(|view| view.id == user)
+            .unwrap();
+        assert_eq!(view.confirmed_bytes, expected.len() as u64 + 1);
+        assert_eq!(view.status, "active");
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn real_tls_revocation_closes_a_and_preserves_b_tcp_and_udp() {
     let fixture = Fixture::new().await;
     let (user_a, _, basic_a) = account(&fixture.engine, "A", None).await;
