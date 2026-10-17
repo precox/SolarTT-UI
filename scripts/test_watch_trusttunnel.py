@@ -12,7 +12,7 @@ from watch_trusttunnel import (
     issue_title, stable_releases, stable_version, watch,
 )
 
-PIN = {"repository": UPSTREAM, "commit": "a" * 40, "archive_sha256": "b" * 64}
+PIN = {"repository": UPSTREAM, "tag": "v1.1.0", "commit": "a" * 40, "archive_sha256": "b" * 64}
 
 
 def release(tag, **changes):
@@ -88,8 +88,26 @@ class SelectionTests(unittest.TestCase):
                        release("v1.1.0", target_commitish="main")])
         self.assertEqual(watch(api, PIN)["current"], "v1.1.0")
         api.commits["v1.1.0"] = "f" * 40
+        api.commits["v1.2.0"] = PIN["commit"]
         with self.assertRaisesRegex(WatchError, "does not match"):
             watch(api, PIN, create=True)
+        self.assertEqual(api.writes, [])
+
+    def test_pinned_tag_must_be_an_exact_published_stable_release(self):
+        for pinned in [None, release("v1.1.0", draft=True),
+                       release("v1.1.0", prerelease=True), release("1.1.0")]:
+            api = FakeAPI([release("v1.2.0")] + ([pinned] if pinned else []))
+            api.commits["v1.2.0"] = PIN["commit"]
+            with self.subTest(pinned=pinned), self.assertRaisesRegex(WatchError, "not a published stable"):
+                watch(api, PIN, create=True)
+            self.assertEqual(api.writes, [])
+
+    def test_advance_pinned_tag_when_releases_share_a_commit(self):
+        api = FakeAPI([release("v1.10.0"), release("v1.1.0"), release("v1.2.0")])
+        api.commits.update({"v1.2.0": PIN["commit"], "v1.10.0": PIN["commit"]})
+        result = watch(api, {**PIN, "tag": "v1.2.0"})
+        self.assertEqual(result["current"], "v1.2.0")
+        self.assertEqual([r["version"] for r in result["releases"]], ["v1.10.0"])
         self.assertEqual(api.writes, [])
 
     def test_no_new_stable_release_is_a_successful_noop(self):
@@ -98,10 +116,16 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(api.writes, [])
 
     def test_invalid_pin_or_commit_is_rejected_before_writes(self):
-        for changes in [{"repository": "other/repo"}, {"commit": "main"}, {"archive_sha256": "bad"}]:
+        for changes in [{"repository": "other/repo"}, {"commit": "main"}, {"archive_sha256": "bad"},
+                        {"tag": None}, {"tag": "v1.3.0-beta.2"}, {"tag": "main"}]:
             api = FakeAPI()
             with self.subTest(changes=changes), self.assertRaises(WatchError):
                 watch(api, {**PIN, **changes}, create=True)
+            self.assertEqual(api.calls, [])
+        for pin in [{key: value for key, value in PIN.items() if key != "tag"}, None, []]:
+            api = FakeAPI()
+            with self.subTest(pin=pin), self.assertRaises(WatchError):
+                watch(api, pin, create=True)
             self.assertEqual(api.calls, [])
         api = FakeAPI()
         api.commits["v1.2.0"] = "main"
@@ -123,6 +147,16 @@ class SelectionTests(unittest.TestCase):
 
 
 class IdempotencyTests(unittest.TestCase):
+    def test_new_release_on_pinned_commit_is_tracked_once(self):
+        api = FakeAPI()
+        api.commits["v1.2.0"] = PIN["commit"]
+        first = watch(api, PIN, create=True)
+        self.assertEqual(first["current"], "v1.1.0")
+        self.assertEqual([(r["version"], r["status"]) for r in first["releases"]],
+                         [("v1.2.0", "created")])
+        self.assertEqual(watch(api, PIN, create=True)["releases"][0]["status"], "tracked")
+        self.assertEqual(len(api.writes), 1)
+
     def test_repeated_run_and_closed_issue_do_not_create_duplicates(self):
         api = FakeAPI()
         first = watch(api, PIN, create=True)
@@ -155,6 +189,13 @@ class IdempotencyTests(unittest.TestCase):
             with self.subTest(failure=failure), self.assertRaises(WatchError):
                 watch(api, PIN, create=True)
             self.assertEqual(api.writes, [])
+
+    def test_later_candidate_resolution_failure_prevents_all_writes(self):
+        api = FakeAPI([release("v1.2.0"), release("v1.1.0"), release("v1.10.0")])
+        api.fail = "/commits/v1.10.0"
+        with self.assertRaises(WatchError):
+            watch(api, PIN, create=True)
+        self.assertEqual(api.writes, [])
 
     def test_later_page_failure_cannot_create_issues(self):
         for endpoint in ["releases", "issues"]:
