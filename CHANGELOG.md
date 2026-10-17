@@ -8,6 +8,9 @@
 - Storage status and caller/profile identifiers in the panel.
 - Schema-1 to schema-2 migration after key/credential validation; readonly staging checks.
 - SQLite-full, checkpoint/restart, pinned-reader, retry and migration regressions.
+- Per-user issued-profile limits, mobile device cards and copyable manual Android settings.
+- Pending issuance IDs survive reauthentication; stale session/export responses cannot restore secrets.
+- Session/CSRF recovery and delayed-response regressions in JavaScript and the installed browser fixture.
 
 See [storage and audit semantics](docs/storage-and-audit.md). Preserve a compatible
 snapshot before upgrading; alpha.1 cannot read schema 2. This is development code.

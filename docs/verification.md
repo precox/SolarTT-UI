@@ -318,3 +318,54 @@ backup was validated with its matching key/timezone/schema/revision. No live
 profile export, new credentials, quota/revoke/rotation or owner-device actions
 were performed for acceptance. Real manual entry on the user's Android device
 remains NOT VERIFIED; CI browser results do not substitute for it.
+
+## Browser session/issuance fixes — 2026-10-17
+
+Independent Sol 6.1 xhigh review identified two P2 issues: a new pending-issuance
+key could be discarded after an unknown result followed by HTTP 401/403; an
+inherited late-export response could reopen secrets after session invalidation.
+The follow-up review also found an initial-session discovery race that could
+restore the login form or old CSRF state after a newer sign-in. All three are
+fixed in `19b61b49d641f44e4f317ec0f7ea22319cb1099d`; the same reviewer checked the
+final diff and 11 passing standalone tests and reported no remaining blockers.
+
+The panel preserves the original issuance request across HTTP/authentication
+errors and sign-out in the current tab. CSRF rejection offers sign-in without
+reloading. An expired receipt remains pending with reconciliation guidance.
+Session generations guard responses before/after JSON parsing, command handling,
+initial session discovery and profile display. Clearing a profile invalidates its
+pending export; network failure from an old session cannot retry in a new one.
+In-memory retry state is not persisted across reload/tab closure. See the storage
+and audit document for this boundary and the required reconciliation.
+
+All 11 pure JavaScript state regressions passed locally and in portable CI. Four
+focused regressions were also run against the original source: all four failed,
+confirming they detect the reviewed defects. The final
+[CI run 39019425992](https://github.com/precox/SolarTT-UI/actions/runs/39019425992)
+passed all five jobs: security, portable, native, legacy and pilot. Existing 150
+Rust functional tests remain green in addition to the 11 new JavaScript tests.
+The disposable installed browser fixture commits a real credential, substitutes a
+503 after its response, obtains a real CSRF 403 using a bad token, signs in, then
+obtains a real 401 after server-side logout and signs in again. All four creation
+attempts use one request ID and resolve to exactly one profile. A real audited
+export response held across session expiry cannot restore fields/QR or open a
+dialog over login. Package lifecycle and upgrade/rollback/recovery also pass.
+
+Artifact 12095513779 ZIP SHA-256
+`2f006517090b5db9a6daaf84d4bc1b54cfc6a72c0cb2cc40afb6aab241b5b619`
+was checked against the Actions digest, internal checksums, pin/lock/patch hashes,
+reviewed maintainer scripts, unchanged systemd units and local ELF libraries.
+Agent/admin binaries are byte-identical to the previous deployment. New panel SHA
+is `7fdadcf6d20c30144f8b91848c678eb7d5521679c6e5de76587e22a8af9a7553`.
+
+The existing approved pilot was updated at 09:06:05 UTC with only a panel restart.
+Installed/running binaries match the artifact. Authenticated login/info/users/
+logout and exact HTML/JS/CSS checks pass. Canonical policy/credentials, protected
+configuration/key/admin-hash contents and permissions are unchanged, and quota
+accounting is preserved. A fresh SQLite backup passes key/timezone/schema/revision
+validation. The agent PID/start time and other service PIDs match the immediate
+installation baseline. Verified TLS/H2, private no-store UI and public cover
+200/API-login 404 pass. No owner profiles or policies were created/exported/
+revoked/reset for acceptance on this host; failure injection took place only in
+the isolated fixture. These checks do not establish actual Android acceptance or
+continuous production-stream preservation.
