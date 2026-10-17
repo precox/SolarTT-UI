@@ -1,6 +1,6 @@
 "use strict";
 const $ = id => document.getElementById(id);
-let csrf = "", revision = 0, exported = null, editing = null, issuing = null, issueAttempt = null, auditBefore = null;
+let csrf = "", revision = 0, exported = null, editing = null, issuing = null, issueAttempt = null, auditBefore = null, authEpoch = 0, profileEpoch = 0;
 const show = (id, visible) => $(id).classList.toggle("hidden", !visible);
 function message(id,text) { $(id).textContent=text; show(id,!!text); }
 function notice(text) { message("notice",text); }
@@ -12,25 +12,36 @@ function bytes(n) {
 }
 function activeProfiles(user) { return user.credentials.filter(c=>!c.revoked); }
 function deviceLimit(user) { return user.policy.device_limit ?? 16; }
+function staleSession() { const error=new Error("Session changed. Sign in and retry the pending action.");error.definitive=false;return error; }
+function signedOut() {
+  authEpoch++;csrf="";clearProfile();
+  for(const id of ["profile","issue","edit"])if($(id).open)$(id).close();
+  show("login",true);show("dashboard",false);show("logout",false);
+}
 async function json(url,body) {
+  const epoch=authEpoch;
   const r=await fetch(url,{method:body===undefined?"GET":"POST",credentials:"same-origin",headers:body===undefined?{}:{"Content-Type":"application/json","X-CSRF-Token":csrf},body:body===undefined?undefined:JSON.stringify(body)});
+  if(epoch!==authEpoch)throw staleSession();
   if(r.status===401) {
-    clearProfile(); for(const id of ["profile","issue","edit"])if($(id).open)$(id).close();
-    show("login",true);show("dashboard",false);show("logout",false);
-    const error=new Error("Sign in required");error.definitive=true;throw error;
+    signedOut();
+    const error=new Error("Sign in required");error.definitive=false;throw error;
   }
   if(r.status===204)return {};
   const data=await r.json();
-  if(!r.ok) { const error=new Error(data.error||"Request failed");error.definitive=r.status<500;throw error; }
+  if(epoch!==authEpoch)throw staleSession();
+  // An HTTP rejection says nothing about an earlier delivery of this request ID.
+  if(!r.ok) { if(r.status===403&&data.error==="CSRF check failed")signedOut();const error=new Error(data.error||"Request failed");error.definitive=false;throw error; }
   return data;
 }
 async function sendCommand(request) {
+  const epoch=authEpoch;
   let result;
   try { result=await json("/api/command",request); }
-  catch(error) { if(error instanceof TypeError)result=await json("/api/command",request);else throw error; }
+  catch(error) { if(epoch!==authEpoch)throw staleSession();if(error instanceof TypeError)result=await json("/api/command",request);else throw error; }
+  if(epoch!==authEpoch)throw staleSession();
   revision=result.desired_revision;
   $("revision").textContent="Policy revision "+revision+" · applied "+result.applied_revision;
-  if(result.result.kind==="error") { const error=new Error(result.result.message);error.definitive=!["cleanup_pending","storage_unavailable"].includes(result.result.code);throw error; }
+  if(result.result.kind==="error") { const error=new Error(result.result.message);error.code=result.result.code;error.definitive=!["cleanup_pending","storage_unavailable","request_expired"].includes(error.code);throw error; }
   return result.result;
 }
 async function command(command) { return sendCommand({request_id:crypto.randomUUID(),expected_revision:revision,command}); }
@@ -69,7 +80,9 @@ function openIssue(user) {
 }
 async function openProfile(credentialId,label) {
   clearProfile();
+  const epoch=authEpoch,profile=profileEpoch;
   const result=await command({op:"export_profile",credential_id:credentialId});
+  if(epoch!==authEpoch||profile!==profileEpoch)return;
   if(!result.deeplink.startsWith("tt://"))throw new Error("Unsupported profile link");
   const m=result.manual;
   if(!m||m.addresses.length!==1||m.upstream_protocol!=="http2"||m.skip_verification||m.anti_dpi||m.certificate!==null)throw new Error("Manual settings are unavailable. Update the panel.");
@@ -138,13 +151,16 @@ function renderUser(user) {
   card.append(more,technical);return card;
 }
 async function refresh() {
+  const epoch=authEpoch;
   const info=await command({op:"info"});
+  if(epoch!==authEpoch)throw staleSession();
   if(info.kind!=="info"||info.info.api_version!==1)throw new Error("Unsupported agent API");
   for(const capability of ["calendar_periods","audit","audited_profile_export","bounded_storage","device_profile_limits"])
     if(!info.info.capabilities.includes(capability))throw new Error("Update the agent to use device profile limits");
   const users=[];let after=null,snapshot=null;
   do {
     const page=await command({op:"users",after});
+    if(epoch!==authEpoch)throw staleSession();
     if(snapshot!==null&&revision!==snapshot)throw new Error("Policy changed while loading users. Refresh again.");
     snapshot=revision;users.push(...page.users);after=page.next_after;
   } while(after!==null);
@@ -159,7 +175,7 @@ async function refresh() {
   show("empty",users.length===0);for(const user of users)$("users").append(renderUser(user));
 }
 async function signedIn(){show("login",false);show("dashboard",true);show("logout",true);await refresh();}
-$("login-form").addEventListener("submit",async e=>{e.preventDefault();const f=e.currentTarget,b=f.querySelector("button");b.disabled=true;try{notice("");const result=await json("/api/login",{username:f.elements.username.value,password:f.elements.password.value});f.elements.password.value="";csrf=result.csrf;await signedIn();}catch(e){notice(e.message);}finally{b.disabled=false;}});
+$("login-form").addEventListener("submit",async e=>{e.preventDefault();const f=e.currentTarget,b=f.querySelector("button");if(b.disabled)return;b.disabled=true;signedOut();const epoch=authEpoch;try{notice("");const result=await json("/api/login",{username:f.elements.username.value,password:f.elements.password.value});if(epoch!==authEpoch)throw staleSession();f.elements.password.value="";csrf=result.csrf;await signedIn();}catch(e){notice(e.message);}finally{b.disabled=false;}});
 $("create-form").addEventListener("submit",async e=>{e.preventDefault();const f=e.currentTarget,b=f.querySelector("button");if(b.disabled)return;b.disabled=true;try{notice("");await command({op:"create_user",label:f.elements.label.value,policy:readPolicy(f)});f.reset();$("create-form").closest("details").open=false;await refresh();}catch(e){notice(e.message);}finally{b.disabled=false;}});
 $("edit-form").addEventListener("submit",async e=>{e.preventDefault();const b=e.currentTarget.querySelector("button");if(b.disabled)return;b.disabled=true;try{message("edit-error","");await command({op:"set_policy",user_id:editing,policy:readPolicy(e.currentTarget)});$("edit").close();await refresh();}catch(e){message("edit-error",e.message);}finally{b.disabled=false;}});
 $("issue-form").addEventListener("submit",async e=>{
@@ -172,15 +188,16 @@ $("issue-form").addEventListener("submit",async e=>{
   } catch(e) {
     if(e.definitive)issueAttempt=null;
     f.elements.label.readOnly=!!issueAttempt;$("issue-submit").textContent=issueAttempt?"Retry creation":"Create connection profile";
-    message("issue-error",e.message+(issueAttempt?" Retry uses the same request and will not issue another profile.":""));
+    message("issue-error",e.message+(e.code==="request_expired"?" The pending request is retained. Review existing profiles and audit history before any new issuance.":issueAttempt?" Retry uses the same request and will not issue another profile.":""));
   } finally {b.disabled=false;}
 });
 document.querySelectorAll("[data-device-name]").forEach(b=>b.addEventListener("click",()=>{if(!issueAttempt){$("issue-form").elements.label.value=b.dataset.deviceName;$("issue-form").elements.label.focus();}}));
 $("cancel-issue").addEventListener("click",()=>$("issue").close());
 $("cancel-edit").addEventListener("click",()=>$("edit").close());
-$("logout").addEventListener("click",async()=>{try{await json("/api/logout",{});issueAttempt=null;location.reload();}catch(e){notice(e.message);}});
+$("logout").addEventListener("click",async()=>{const b=$("logout");if(b.disabled)return;b.disabled=true;authEpoch++;clearProfile();if($("profile").open)$("profile").close();try{await json("/api/logout",{});signedOut();notice(issueAttempt?"Device setup is pending. Sign in again to resume the same request.":"");}catch(e){notice(e.message);}finally{b.disabled=false;}});
 $("refresh").addEventListener("click",()=>refresh().catch(e=>notice(e.message)));
 function clearProfile(){
+  profileEpoch++;
   exported=null;$("deeplink").value="";$("qr").removeAttribute("src");$("open-app").removeAttribute("href");$("profile-status").textContent="";
   document.querySelectorAll("#manual-settings input,#manual-settings textarea").forEach(e=>{e.value="";});
   document.querySelectorAll("[data-copy-field]").forEach(b=>{b.disabled=true;});
@@ -204,4 +221,5 @@ async function audit(reset) {
 }
 $("audit-refresh").addEventListener("click",()=>audit(true).catch(e=>notice(e.message)));
 $("audit-more").addEventListener("click",()=>audit(false).catch(e=>notice(e.message)));
-json("/api/session").then(s=>{csrf=s.csrf;return signedIn();}).catch(e=>{show("login",true);if(e.message!=="Sign in required")notice(e.message);});
+const bootstrapEpoch=authEpoch;
+json("/api/session").then(s=>{if(bootstrapEpoch!==authEpoch)return;csrf=s.csrf;return signedIn();}).catch(e=>{if(bootstrapEpoch!==authEpoch)return;show("login",true);if(e.message!=="Sign in required")notice(e.message);});

@@ -72,6 +72,12 @@ try {
     if (result.exceptionDetails) throw new Error('Browser evaluation failed');
     return result.result.value;
   }
+  async function inPage(fn,...args) { return evaluate('('+fn.toString()+')('+args.map(arg=>JSON.stringify(arg)).join(',')+')'); }
+  async function signIn(userCount) {
+    await inPage(password=>{const f=document.getElementById('login-form');f.elements.username.value='admin';f.elements.password.value=password;f.requestSubmit();},fixture.password);
+    await waitFor(async()=>await visible('dashboard') && await evaluate('document.querySelectorAll("#users .user-card").length==='+userCount),'authenticated dashboard');
+    assert(await evaluate('document.querySelector("#login-form [name=password]").value===""'),'login password remained in form');
+  }
   async function visible(id) { return evaluate('(() => {const e=document.getElementById('+JSON.stringify(id)+'); return !!e && !e.classList.contains("hidden");})()'); }
   async function viewport(width) {
     await call('Emulation.setDeviceMetricsOverride',{width,height:844,deviceScaleFactor:1,mobile:true});
@@ -99,16 +105,47 @@ try {
     await waitFor(async()=>await evaluate('document.getElementById("issue").open'),'device setup');
     assert(await evaluate('document.getElementById("issue").scrollWidth <= document.getElementById("issue").clientWidth'),'device form overflowed');
     if(unknownResult) {
-      await evaluate('(() => {const original=globalThis.fetch;globalThis.fetch=async function(url,options){const response=await original(url,options);if(url==="/api/command" && JSON.parse(options.body).command.op==="create_credential"){globalThis.fetch=original;return new Response(JSON.stringify({error:"Synthetic response lost after commit"}),{status:503,headers:{"Content-Type":"application/json"}});}return response;};})()');
+      await inPage(()=>{
+        const original=globalThis.fetch,ids=[];let attempts=0;globalThis.fixtureIssueIds=ids;
+        globalThis.fetch=async function(url,options){
+          if(url==='/api/command') {
+            const req=JSON.parse(options.body);
+            if(req.command.op==='create_credential') {
+              ids.push(req.request_id);attempts++;
+              if(attempts===2)return original(url,{...options,headers:{...options.headers,'X-CSRF-Token':'synthetic-wrong-csrf'}});
+              const response=await original(url,options);
+              if(attempts===1)return new Response(JSON.stringify({error:'Synthetic response lost after commit'}),{status:503,headers:{'Content-Type':'application/json'}});
+              if(attempts===4)globalThis.fetch=original;
+              return response;
+            }
+          }
+          return original(url,options);
+        };
+      });
     }
     await evaluate('(() => {const f=document.getElementById("issue-form");f.elements.label.value='+JSON.stringify(name)+';f.requestSubmit();})()');
     if(unknownResult) {
       await waitFor(async()=>await evaluate('document.getElementById("issue-submit").textContent==="Retry creation" && !document.getElementById("issue-submit").disabled'),'unknown creation result');
       await evaluate('document.getElementById("issue-form").requestSubmit()');
+      await waitFor(async()=>await visible('login') && !await visible('dashboard') && await evaluate('!document.getElementById("issue-submit").disabled'),'CSRF retry rejection');
+      assert(await evaluate('issueAttempt!==null && fixtureIssueIds.length===2 && fixtureIssueIds[0]===fixtureIssueIds[1]'),'CSRF rejection discarded the original issuance key');
+      await signIn(2);
+      await evaluate('fixtureCard().querySelector(".add-device").click()');
+      // Revoke the actual disposable admin session, then retry the same creation.
+      await inPage(async()=>{await json('/api/logout',{});document.getElementById('issue-form').requestSubmit();});
+      await waitFor(async()=>await visible('login') && !await visible('dashboard') && await evaluate('!document.getElementById("issue-submit").disabled'),'expired admin session');
+      assert(await evaluate('issueAttempt!==null && fixtureIssueIds.length===3'),'401 discarded an unknown issuance');
+      await signIn(2);
+      await evaluate('fixtureCard().querySelector(".add-device").click()');
+      await evaluate('document.getElementById("issue-form").requestSubmit()');
     }
     await waitFor(async()=>await evaluate('document.getElementById("profile").open && document.getElementById("deeplink").value.startsWith("tt://")'),'created profile export');
     assert(await evaluate('document.getElementById("qr").src.startsWith("data:image/svg+xml;base64,")'),'QR was not generated locally');
     assert(await evaluate('document.getElementById("open-app").getAttribute("href").startsWith("tt://")'),'app link missing');
+    if(unknownResult) {
+      assert(await evaluate('fixtureIssueIds.length===4 && new Set(fixtureIssueIds).size===1 && fixtureCard().querySelectorAll(".device-card").length===1 && issueAttempt===null'),'reauthentication did not replay exactly one issuance');
+      await evaluate('delete globalThis.fixtureIssueIds');
+    }
     await checkManualSetup(name);
     await closeProfile();
   }
@@ -117,16 +154,36 @@ try {
   await viewport(390);
   await call('Page.navigate',{url:fixture.origin});
   await waitFor(async()=>await evaluate('document.readyState === "complete"') && await visible('login'),'login form');
-  await evaluate('(() => {const f=document.getElementById("login-form");f.elements.username.value="admin";f.elements.password.value='+JSON.stringify(fixture.password)+';f.requestSubmit();})()');
-  fixture.password='';
-  await waitFor(async()=>await visible('dashboard') && await evaluate('document.querySelectorAll("#users .user-card").length===1'),'authenticated dashboard');
-  assert(await evaluate('document.querySelector("#login-form [name=password]").value===""'),'login password remained in form');
+  await signIn(1);
   const label='<img src=x onerror="window.solarttXss=true">';
   await evaluate('(() => {document.querySelector("details.create").open=true;const f=document.getElementById("create-form");f.elements.label.value='+JSON.stringify(label)+';f.elements.quota.value="0.001";f.elements.device_limit.value="1";f.elements.monthly.checked=true;f.requestSubmit();})()');
   await waitFor(async()=>await evaluate('document.querySelectorAll("#users .user-card").length===2'),'created user');
   await evaluate('globalThis.fixtureCard=()=>Array.from(document.querySelectorAll("#users .user-card")).find(r=>r.querySelector("h2").textContent==='+JSON.stringify(label)+')');
   assert(await evaluate('document.getElementById("users").textContent.includes('+JSON.stringify(label)+') && !document.querySelector("#users img") && !window.solarttXss'),'label was interpreted as HTML');
   await issueDevice('Browser phone',true);
+  // Hold a real audited export response across actual session expiry. The stale
+  // response must never restore a password, QR or dialog over the login screen.
+  await inPage(()=>{
+    const original=globalThis.fetch;globalThis.fixtureOriginalFetch=original;
+    globalThis.fetch=async function(url,options){
+      const response=await original(url,options);
+      if(url==='/api/command'&&JSON.parse(options.body).command.op==='export_profile') {
+        await new Promise(resolve=>{globalThis.fixtureReleaseExport=resolve;});
+      }
+      return response;
+    };
+    const card=fixtureCard().querySelector('.device-card');
+    globalThis.fixtureExportPromise=openProfile(card.dataset.credentialId,'Browser phone').catch(()=>{});
+  });
+  await waitFor(async()=>await evaluate('typeof fixtureReleaseExport==="function"'),'held export response');
+  await inPage(async()=>{await json('/api/logout',{});try{await json('/api/session');}catch{/* expected 401 */}});
+  assert(await visible('login') && !await visible('dashboard'),'expired session did not return to login');
+  assert(await inPage(async()=>{
+    globalThis.fetch=globalThis.fixtureOriginalFetch;globalThis.fixtureReleaseExport();await globalThis.fixtureExportPromise;
+    delete globalThis.fixtureOriginalFetch;delete globalThis.fixtureReleaseExport;delete globalThis.fixtureExportPromise;
+    return exported===null&&!document.getElementById('profile').open&&document.getElementById('deeplink').value===''&&!document.getElementById('qr').hasAttribute('src')&&Array.from(document.querySelectorAll('#manual-settings input,#manual-settings textarea')).every(e=>e.value==='');
+  }),'late export restored secrets after 401');
+  await signIn(2);
   assert(await evaluate('fixtureCard().querySelectorAll(".device-card").length===1 && fixtureCard().querySelector(".add-device").disabled'),'one-slot device limit not reflected');
   assert(await evaluate('(async()=>{try{await command({op:"create_credential",user_id:fixtureCard().dataset.userId,label:"Over limit"});return false;}catch(e){return e.message.includes("Device limit reached");}})()'),'API bypassed the device limit');
   await evaluate('fixtureCard().querySelector(".access-settings").click()');
@@ -157,8 +214,9 @@ try {
   await evaluate('document.getElementById("logout").click()');
   await waitFor(async()=>await visible('login') && !await visible('dashboard'),'logout');
   assert(await evaluate('fetch("/api/session").then(r=>r.status===401)'),'logout session remained valid');
-  console.log('Browser manual Android setup/copy/privacy, mobile cards, device limits, idempotent issuance, revoke/reissue, profile clearing, HTML label and logout checks passed');
+  console.log('Browser reauthenticated same-key issuance, stale export rejection, manual Android setup/copy/privacy, mobile cards, device limits, revoke/reissue, HTML label and logout checks passed');
 } finally {
+  fixture.password='';
   if (socket) socket.close();
   if (chrome.exitCode === null && chrome.signalCode === null) {
     const exited = new Promise(resolve => chrome.once('exit', resolve));

@@ -24,6 +24,25 @@ Passwords start hidden and return to hidden on the next opening. Field copies
 stay local to the browser/device clipboard and never become audit fields.
 Audit events do not advance the policy revision or consume traffic allowance.
 
+### Browser retries and administrator sessions
+
+Unknown device issuance keeps its original request ID in the current browser tab.
+HTTP errors, including session expiry and CSRF rejection, do not establish that
+an earlier delivery failed. Sign in again and use **Resume setup** to replay the
+same request. Sign out clears exported secrets without reloading the page, so a
+pending issuance remains available after another sign-in. A rejected CSRF token
+also returns to sign-in without discarding that issuance. Reloading or closing
+the tab still loses this in-memory retry state; inspect existing profiles before
+starting another issuance. If retry history has expired, the pending request is
+retained and the operator must reconcile existing profiles/audit history before
+starting any new request; the UI does not automatically replace its ID.
+
+Session generations invalidate old responses on 401, CSRF rejection, sign-in and
+sign-out. The panel checks the generation before and after response-body parsing
+and before displaying an export. Initial session discovery cannot replace a
+newer login or CSRF token. Closing/clearing a profile also invalidates its pending
+export, so late responses cannot restore fields or reopen the dialog.
+
 ## Retention defaults
 
 The agent accepts an optional host-owned `[retention]` section. Example values are
