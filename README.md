@@ -1,6 +1,10 @@
+<p align="center">
+  <img src="docs/branding/solartt-avatar.png" width="160" height="160" alt="SolarTT-UI sun and tunnel logo">
+</p>
+
 # SolarTT-UI
 
-**Independent, self-hosted management for TrustTunnel.**
+**Open source, self-hosted management for TrustTunnel · [Apache-2.0](LICENSE).**
 
 A lightweight web panel and managed TrustTunnel endpoint: users, individual
 device profiles, traffic quotas, expiry, rotation and revocation. Community
@@ -98,8 +102,17 @@ cargo test --locked -p solartt-agent -- --test-threads=1
 
 ## License and acknowledgments
 
-Apache-2.0 for SolarTT-UI. Dependencies retain their original licenses. Exact
-upstream pin, patches and third-party attribution texts accompany binary builds.
+SolarTT-UI is open source under the **[Apache License 2.0](LICENSE)**. You may use,
+modify and redistribute it, including commercially, subject to the license's
+conditions. Preserve applicable license/attribution notices and identify changed
+files. Apache-2.0 includes an explicit, scoped patent grant; it does not require
+you to publish your modified source code.
+
+We chose this permissive license to support reuse and contributions while keeping
+the same license family as the Apache-2.0 TrustTunnel upstream. The upstream's
+license is not, by itself, a requirement to choose Apache-2.0 for independent
+SolarTT code. Dependencies retain their original licenses. Exact upstream pin,
+patches and third-party attribution texts accompany binary builds.
 See [NOTICE](NOTICE) and [dependency notices](docs/dependency-notices.md).
 
 This product includes software developed by the OpenSSL Project for use in the
