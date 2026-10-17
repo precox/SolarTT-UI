@@ -12,7 +12,7 @@ and every preserved notice's SHA-256 for each package. The original expressions
 and all alternative license texts remain in `third-party/manifest.json` and its
 notice tree. MIT is selected for the reviewed MIT/Apache alternatives (including
 legacy slash metadata); Apache-2.0 is selected for ryu's Apache/Boost choice,
-MIT-0 for dunce, and MIT for r-efi rather than its LGPL alternative. Independent
+CC0-1.0 for dunce (matching its supplied full license text), and MIT for r-efi rather than its LGPL alternative. Independent
 AND terms are retained. Unicode-3.0 is retained in addition to unicode-ident's
 MIT choice. No GPL/LGPL alternative is selected for the shipped release.
 
@@ -21,7 +21,7 @@ MIT choice. No GPL/LGPL alternative is selected for the shipped release.
 | MIT, ISC, BSD-2/3-Clause | Preserve copyright, permission/conditions and disclaimer text; no endorsement by upstream authors. |
 | Apache-2.0 | Ship license and attribution texts; mark modified TrustTunnel files; preserve applicable NOTICE files. |
 | Unicode-3.0 | Ship copyright/permission/disclaimer with documentation; no use of authors' names for promotion. |
-| MIT-0 | Preserve original supplied text even where attribution is not required. |
+| CC0-1.0 | Preserve the supplied waiver/fallback license and limitations; do not imply trademark or patent rights. |
 | Legacy OpenSSL/SSLeay in native components | Preserve original conditions and acknowledgments in NOTICE, README, release notes and binary documentation, including advertising acknowledgments. |
 
 The collector includes all LICENSE/NOTICE/AUTHORS/COPYRIGHT/COPYING files found

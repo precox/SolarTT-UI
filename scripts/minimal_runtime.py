@@ -36,7 +36,7 @@ def main():
     absent = ['cargo', 'rustc', 'cc', 'gcc', 'g++', 'cmake', 'clang', 'node', 'chromium']
     assert all(shutil.which(name) is None for name in absent), 'Runtime image contains build tools'
     versions = {name: run(name, '--version').strip() for name in ('solartt-agent', 'solartt-panel', 'solartt-admin')}
-    assert len({s.split()[-1] for s in versions.values()}) == 1
+    assert len({s.split()[2] for s in versions.values()}) == 1
     assert not Path('/run/systemd/system').exists(), 'Container fixture must not claim host systemd coverage'
     account = __import__('pwd').getpwnam('solartt-panel')
     config = Path('/etc/solartt')
@@ -136,7 +136,7 @@ def main():
                 status = Path(f'/proc/{children[0]}/status').read_text().splitlines()
                 rss[label] = int(next(line.split()[1] for line in status if line.startswith('VmRSS:')))
             result = {'status':'PASS', 'os':'Ubuntu 24.04 x86_64', 'environment':'minimal Docker runtime, not systemd PID 1',
-                'versions':versions, 'absent_tools':absent, 'installed_size_kib':int(run('dpkg-query','-W','-f=${Installed-Size}','solartt-ui')),
+                'versions':versions, 'runtime_packages':run('dpkg-query','-W','-f=${Package} ${Version}\n','libc6','libgcc-s1','libstdc++6','ca-certificates','openssl','python3').splitlines(), 'absent_tools':absent, 'installed_size_kib':int(run('dpkg-query','-W','-f=${Installed-Size}','solartt-ui')),
                 'installed_payload_bytes':sum(p.stat().st_size for p in list(Path('/usr/bin').glob('solartt-*')) + list(DOC.rglob('*')) if p.is_file()),
                 'sampled_rss_kib':rss, 'checks':['declared_runtime_dependencies','packaged_configuration','dedicated_accounts','admin_login','unix_control_readiness','profile_limit_and_manual_export','verified_tls_h2','panel_key_denial','backup_check'],
                 'scope':'Process/runtime acceptance; systemd install/upgrade/removal is tested separately on a GitHub VM. No sustained capacity or Android claim.'}
