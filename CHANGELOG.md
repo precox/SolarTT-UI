@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.0-alpha.5 — 2026-10-17
 
 - Fix a managed H2 download stall when a traffic-accounting lease splits a
   response buffer after the sink has consumed all requested flow-control capacity.
