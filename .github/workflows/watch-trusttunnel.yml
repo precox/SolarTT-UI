@@ -1,0 +1,38 @@
+name: Watch TrustTunnel releases
+on:
+  schedule:
+    - cron: '23 7 * * 1' # Mondays, 07:23 UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Only report candidates; do not create issues'
+        type: boolean
+        default: false
+permissions: {}
+concurrency:
+  group: watch-trusttunnel-releases
+  cancel-in-progress: false
+jobs:
+  watch:
+    if: >-
+      github.repository == 'precox/SolarTT-UI' &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Test release selection and issue idempotency
+        run: python3 -B -m unittest discover -s scripts -p test_watch_trusttunnel.py
+      - name: Discover stable releases and file maintenance tasks
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run || false }}
+        run: |
+          args=()
+          if [[ "$DRY_RUN" != true ]]; then args+=(--create-issues); fi
+          python3 -B scripts/watch_trusttunnel.py "${args[@]}"

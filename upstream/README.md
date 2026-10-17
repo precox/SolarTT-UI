@@ -12,3 +12,7 @@ to a dedicated upstream fork later without changing the control API.
 Upstream owns TLS, HTTP/2 and forwarding. SolarTT owns identities, policy, quota
 periods, persistence and administration. No protocol extensions or custom clients
 are intended. Compatibility must be established by tests before releases.
+
+See [upstream maintenance](../docs/upstream-maintenance.md) for the weekly stable
+release watcher, issue deduplication and the separate reviewed update process.
+Discovery never replaces the managed agent or changes this pin automatically.

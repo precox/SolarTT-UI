@@ -39,6 +39,7 @@ jobs:
       - run: node --check crates/panel/assets/app.js && node --check scripts/browser_smoke.mjs
       - run: node --test scripts/panel_state_tests.mjs
       - run: python3 -B -m unittest discover -s scripts -p test_release_tools.py
+      - run: python3 -B -m unittest discover -s scripts -p test_watch_trusttunnel.py
       - run: cargo clippy --locked -p solartt-control-api -p solartt-policy -p solartt-profile-export -p solartt-panel -p solartt-admin --all-targets -- -D warnings
       - run: cargo test --locked -p solartt-control-api -p solartt-policy -p solartt-profile-export -p solartt-panel -p solartt-admin
   native:
