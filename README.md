@@ -12,7 +12,7 @@ independent community project, not an official TrustTunnel product.
 This page covers installation and everyday use. For development and build
 instructions, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
-**Current release: [v0.1.0-alpha.4](https://github.com/precox/SolarTT-UI/releases/tag/v0.1.0-alpha.4).**
+**Current release: [v0.1.0-alpha.5](https://github.com/precox/SolarTT-UI/releases/tag/v0.1.0-alpha.5).**
 This alpha is intended for an operator-supervised single-node pilot. There is
 no stable release or guaranteed concurrent-user capacity yet.
 
@@ -33,13 +33,13 @@ no stable release or guaranteed concurrent-user capacity yet.
 ## Download
 
 Get the matching files from the
-[alpha release](https://github.com/precox/SolarTT-UI/releases/tag/v0.1.0-alpha.4):
+[alpha release](https://github.com/precox/SolarTT-UI/releases/tag/v0.1.0-alpha.5):
 
 | Target | File | Use |
 | --- | --- | --- |
-| Ubuntu 24.04, x86_64, systemd | `solartt-ui_0.1.0-alpha.4_amd64.deb` | Recommended installation; includes service account setup |
-| Linux x86_64 binary payload | `solartt-ui-0.1.0-alpha.4-linux-x86_64.tar.gz` | Manual deployment; does not set up service accounts |
-| Source code | `solartt-ui-0.1.0-alpha.4-source.tar.gz` | Building and inspecting the release |
+| Ubuntu 24.04, x86_64, systemd | `solartt-ui_0.1.0-alpha.5_amd64.deb` | Recommended installation; includes service account setup |
+| Linux x86_64 binary payload | `solartt-ui-0.1.0-alpha.5-linux-x86_64.tar.gz` | Manual deployment; does not set up service accounts |
+| Source code | `solartt-ui-0.1.0-alpha.5-source.tar.gz` | Building and inspecting the release |
 
 The Ubuntu package is the verified deployment target; the binary archive does
 not imply support for other distributions. Download `SHA256SUMS` alongside your
@@ -54,7 +54,7 @@ On the target server, use an empty directory for the downloaded `.deb` and
 ```sh
 sha256sum --ignore-missing -c SHA256SUMS
 sudo apt-get update
-sudo apt-get install ./solartt-ui_0.1.0-alpha.4_amd64.deb
+sudo apt-get install ./solartt-ui_0.1.0-alpha.5_amd64.deb
 ```
 
 Continue only if the package checksum passes. No Rust, compiler, Node or Chromium
@@ -170,9 +170,10 @@ follow the upgrade procedure before replacing an installed version. Older
 binaries may not understand newer database or device-policy formats; do not
 assume a package downgrade is a safe rollback.
 
-Alpha.4 is the current public build. Alpha.1 and alpha.2 were internal builds;
-alpha.3 was withdrawn after GitHub changed its uploaded package filename.
-See the [alpha.4 release notes](docs/releases/v0.1.0-alpha.4.md) for the correction.
+Alpha.5 fixes a managed HTTP/2 download stall across traffic-accounting leases.
+See the [alpha.5 release notes](docs/releases/v0.1.0-alpha.5.md). Alpha.1 and
+alpha.2 were internal builds; alpha.3 was withdrawn after GitHub changed its
+uploaded package filename, corrected in [alpha.4](docs/releases/v0.1.0-alpha.4.md).
 
 ## Building from source
 

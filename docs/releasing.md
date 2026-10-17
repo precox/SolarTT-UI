@@ -16,7 +16,7 @@ prerequisites succeed; ordinary branch builds never publish a release.
    fast-forward. Verify GitHub private vulnerability reporting is enabled.
 4. Create a unique annotated tag whose version matches Cargo.toml, then push it.
    The tag must point to a commit contained in `main`. Use an alpha tag such as
-   `v0.1.0-alpha.4`; stable tags are intentionally rejected by the alpha publisher.
+   `v0.1.0-alpha.5`; stable tags are intentionally rejected by the alpha publisher.
 5. The tagged CI build runs six prerequisite jobs. Only the publish job receives
    `contents: write`. It checks source/build/tag identity, asset checksums,
    successful prerequisites and private reporting before creating a draft.
