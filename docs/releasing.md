@@ -4,6 +4,10 @@ Only a maintainer with explicit publication authorization should push release
 tags. The CI workflow automatically publishes matching alpha tags after all
 prerequisites succeed; ordinary branch builds never publish a release.
 
+TrustTunnel dependency updates begin with the separate
+[upstream maintenance process](upstream-maintenance.md). Its watcher files tasks;
+patch porting, compatibility review and all release gates still apply.
+
 1. Update the workspace version and all six SolarTT entries in Cargo.lock.
    Keep the upstream/library pins explicit; never regenerate dependency versions
    merely to bump the SolarTT version. Add dated changelog and
