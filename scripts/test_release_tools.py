@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 from license_review import verify
-from publish_alpha import checked_manifest, validate_identity
+from publish_alpha import checked_manifest, validate_identity, verify_uploaded_asset
 
 
 class LicenseReviewTests(unittest.TestCase):
@@ -49,6 +49,17 @@ class LicenseReviewTests(unittest.TestCase):
 
 
 class PublicationGuards(unittest.TestCase):
+    def test_normalized_filename_is_rejected_before_publication(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'solartt_0.1~alpha3.deb'
+            path.write_bytes(b'synthetic package')
+            uploaded = {'name':path.name,'size':path.stat().st_size,'state':'uploaded',
+                        'digest':'sha256:'+hashlib.sha256(path.read_bytes()).hexdigest()}
+            verify_uploaded_asset(path,uploaded)
+            uploaded['name'] = path.name.replace('~','.')
+            with self.assertRaises(ValueError):
+                verify_uploaded_asset(path,uploaded)
+
     def test_exact_alpha_identity(self):
         commit = 'a'*40
         validate_identity('v0.1.0-alpha.3',commit,{'version':'0.1.0-alpha.3','source_commit':commit},'0.1.0-alpha.3')

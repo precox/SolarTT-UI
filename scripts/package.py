@@ -83,7 +83,7 @@ Description: Independent management for TrustTunnel
                 path.chmod(0o755)
             elif path.is_file() and path.is_relative_to(tree / "usr/share/doc"):
                 path.chmod(0o644)
-        deb = output / f"solartt-ui_{deb_version}_amd64.deb"
+        deb = output / f"solartt-ui_{version}_amd64.deb"
         subprocess.run(["dpkg-deb", "--root-owner-group", "--build", str(tree), str(deb)], check=True)
         archive = output / f"solartt-ui-{version}-linux-x86_64.tar.gz"
         with tarfile.open(archive, "w:gz") as tar:

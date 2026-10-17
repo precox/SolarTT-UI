@@ -6,13 +6,14 @@ A lightweight web panel and managed TrustTunnel endpoint: users, individual
 device profiles, traffic quotas, expiry, rotation and revocation. Community
 project, not an official TrustTunnel product.
 
-## First public alpha
+## Public alpha
 
-**v0.1.0-alpha.3** is the first public alpha. Alpha.1 and alpha.2 were development
-builds, not public releases. Intended for an operator-supervised single-node
+**v0.1.0-alpha.4** is the current initial alpha. Alpha.1 and alpha.2 were internal
+builds. Alpha.3 was withdrawn because GitHub normalized its deb download name;
+alpha.4 fixes the filename/checksum links without runtime behavior changes. Intended for an operator-supervised single-node
 pilot; there is no stable version or guaranteed concurrent-user capacity.
 
-[Download the alpha](https://github.com/precox/SolarTT-UI/releases/tag/v0.1.0-alpha.3)
+[Download the alpha](https://github.com/precox/SolarTT-UI/releases/tag/v0.1.0-alpha.4)
 → [install on Ubuntu 24.04](docs/install.md)
 → [client setup](docs/client-compatibility.md).
 Published assets include the amd64 `.deb`, binary `.tar.gz`, source archive,

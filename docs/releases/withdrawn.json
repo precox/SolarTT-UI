@@ -1,0 +1,8 @@
+[
+  {
+    "tag": "v0.1.0-alpha.3",
+    "source_commit": "a01874de0a07d4bc05894fef5e36ab0419d44f48",
+    "reason": "Withdrawn: GitHub normalized the deb filename (tilde to dot), so the download name did not match SHA256SUMS and install links. Package bytes and their digest were intact. No runtime security issue was identified by this check.",
+    "replacement_url": "https://github.com/precox/SolarTT-UI/releases/tag/v0.1.0-alpha.4"
+  }
+]

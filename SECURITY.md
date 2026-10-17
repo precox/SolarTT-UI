@@ -1,6 +1,6 @@
 # Security
 
-SolarTT-UI v0.1.0-alpha.3 is experimental. No supported stable version exists.
+SolarTT-UI v0.1.0-alpha.4 is experimental. No supported stable version exists.
 Keep administration private and retain a tested backup before a pilot upgrade.
 
 ## Reporting a vulnerability

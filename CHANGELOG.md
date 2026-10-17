@@ -1,6 +1,13 @@
 # Changelog
 
-## 0.1.0-alpha.3 — 2026-10-17 (first public alpha)
+## 0.1.0-alpha.4 — 2026-10-17 (current public alpha)
+
+- Uses a GitHub-safe deb filename while preserving internal Debian prerelease ordering.
+- Rejects asset name normalization before publication; regression verifies equal bytes with a changed name still fail.
+- Corrects download URLs/checksum filenames and withdraws alpha.3 without moving its tag or overwriting its assets.
+- No runtime behavior changes from alpha.3; all publication gates are rerun.
+
+## 0.1.0-alpha.3 — 2026-10-17 (withdrawn)
 
 - Publishes the existing managed endpoint and mobile panel as a GitHub prerelease.
 - Includes user quotas/expiry, individual profiles and admin-set profile limits.

@@ -38,6 +38,33 @@ def checked_manifest(folder):
     return seen
 
 
+def verify_uploaded_asset(path, uploaded):
+    # GitHub normalizes some special characters (including Debian's tilde).
+    # A content digest alone cannot detect a broken download/checksum filename.
+    if uploaded['name'] != path.name:
+        raise ValueError('GitHub changed an asset filename; refusing publication')
+    if uploaded['size'] != path.stat().st_size or uploaded['state'] != 'uploaded':
+        raise ValueError('Release asset upload verification failed')
+    digest = uploaded.get('digest')
+    if digest and digest != 'sha256:'+hashlib.sha256(path.read_bytes()).hexdigest():
+        raise ValueError('GitHub asset digest mismatch')
+
+
+def withdraw_superseded(api):
+    for entry in json.loads((ROOT / 'docs/releases/withdrawn.json').read_text()):
+        release = api('GET','/releases/tags/'+entry['tag'])
+        if not release:
+            continue
+        if release['target_commitish'] != entry['source_commit'] or not release['prerelease']:
+            raise ValueError('Withdrawn release identity mismatch')
+        body = entry['reason']+'\n\nUse '+entry['replacement_url']+' instead.\n'
+        updates = {'name':'Withdrawn — '+entry['tag'], 'body':body, 'prerelease':True}
+        if not release.get('immutable', False):
+            updates['draft'] = True
+        api('PATCH',f'/releases/{release["id"]}',updates)
+        print('Superseded alpha marked withdrawn:',entry['tag'])
+
+
 def main():
     if os.environ.get('GITHUB_ACTIONS') != 'true' or os.environ.get('GITHUB_EVENT_NAME') != 'push':
         raise SystemExit('Publishing requires a successful GitHub tag push workflow')
@@ -55,7 +82,7 @@ def main():
     metadata = json.loads((inputs / 'build.json').read_text())
     validate_identity(tag,commit,metadata,version)
     original = checked_manifest(inputs)
-    names = {f'solartt-ui_{version.replace("-alpha.","~alpha")}_amd64.deb',
+    names = {f'solartt-ui_{version}_amd64.deb',
              f'solartt-ui-{version}-linux-x86_64.tar.gz',f'solartt-ui-{version}-source.tar.gz','build.json'}
     if original != names:
         raise SystemExit('Unexpected native artifact manifest')
@@ -112,6 +139,8 @@ def main():
     if len(present) != len(release.get('assets',[])) or present.keys() - {p.name for p in output.iterdir()}:
         raise SystemExit('Unexpected or duplicate existing release assets')
     for path in sorted(output.iterdir()):
+        if not re.fullmatch(r'[A-Za-z0-9._-]+',path.name):
+            raise ValueError('Unsafe public asset filename')
         if path.name in present:
             asset = present[path.name]
             if (asset['size'] != path.stat().st_size or asset.get('digest') != 'sha256:'+hashlib.sha256(path.read_bytes()).hexdigest()):
@@ -121,15 +150,12 @@ def main():
             raise SystemExit('Published release is incomplete; refusing mutation')
         upload_url = release['upload_url'].split('{',1)[0]+'?name='+urllib.parse.quote(path.name,safe='')
         uploaded = api('POST',upload_url,path.read_bytes(),'application/octet-stream')
-        if uploaded['size'] != path.stat().st_size or uploaded['state'] != 'uploaded':
-            raise SystemExit('Release asset upload verification failed')
-        digest = uploaded.get('digest')
-        if digest and digest != 'sha256:'+hashlib.sha256(path.read_bytes()).hexdigest():
-            raise SystemExit('GitHub asset digest mismatch')
+        verify_uploaded_asset(path,uploaded)
     published = (api('PATCH',f'/releases/{release["id"]}',{'draft':False,'prerelease':True,'make_latest':'false'})
                  if release['draft'] else release)
     if published['draft'] or not published['prerelease']:
         raise SystemExit('Unexpected published release state')
+    withdraw_superseded(api)
     print('Published alpha prerelease:',published['html_url'])
 
 
