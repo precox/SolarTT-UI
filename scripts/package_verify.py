@@ -15,7 +15,7 @@ BINARIES = ("solartt-agent", "solartt-panel", "solartt-admin")
 def main():
     output = ROOT / "dist"
     debs = list(output.glob("*.deb"))
-    archives = list(output.glob("solartt-ui-*.tar.gz"))
+    archives = list(output.glob("solartt-ui-*-linux-x86_64.tar.gz"))
     if len(debs) != 1 or len(archives) != 1:
         raise SystemExit("Expected exactly one development deb and tar archive")
     for line in (output / "SHA256SUMS").read_text().splitlines():

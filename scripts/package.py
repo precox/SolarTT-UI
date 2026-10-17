@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Package already-built binaries without installing or starting any service."""
 import hashlib
+import gzip
 import json
 import re
 import shutil
@@ -31,12 +32,13 @@ def main():
         for example in sorted(list((ROOT / "examples").glob("*.toml")) +
                               list((ROOT / "examples").glob("*.cfg"))):
             copy(example, "usr/share/doc/solartt-ui/examples/" + example.name)
-        for source in (ROOT / "docs").glob("*.md"):
+        for source in sorted(list((ROOT / "docs").glob("*.md")) + list((ROOT / "docs").glob("dependency-*.json"))):
             copy(source, "usr/share/doc/solartt-ui/" + source.name)
-        for name in ("LICENSE", "README.md", "SECURITY.md", "CHANGELOG.md"):
+        for name in ("LICENSE", "NOTICE", "README.md", "SECURITY.md", "CHANGELOG.md"):
             copy(ROOT / name, "usr/share/doc/solartt-ui/" + name)
         copy(ROOT / "upstream/pin.json", "usr/share/doc/solartt-ui/upstream-pin.json")
         copy(ROOT / "upstream/0001-managed-policy.patch", "usr/share/doc/solartt-ui/managed-policy.patch")
+        copy(ROOT / "upstream/license-review.json", "usr/share/doc/solartt-ui/license-review.json")
         notices = output / "third-party"
         if not notices.is_dir():
             raise SystemExit("Run scripts/licenses.py before packaging")
@@ -54,11 +56,13 @@ def main():
         dependencies = "adduser, ca-certificates, libc6 (>= 2.39), libgcc-s1"
         if "libstdc++.so.6" in native_libraries:
             dependencies += ", libstdc++6"
+        installed_kib = (sum(p.stat().st_size for p in tree.rglob("*") if p.is_file()) + 1023) // 1024
         control = tree / "DEBIAN"
         control.mkdir()
         (control / "control").write_text(f"""Package: solartt-ui
 Version: {deb_version}
 Architecture: amd64
+Installed-Size: {installed_kib}
 Maintainer: SolarTT-UI contributors <noreply@github.com>
 Depends: {dependencies}
 Section: net
@@ -86,11 +90,17 @@ Description: Independent management for TrustTunnel
             for path in sorted(tree.iterdir()):
                 if path.name != "DEBIAN":
                     tar.add(path, arcname=path.name)
-    metadata = {"version": version, "upstream": json.loads((ROOT / "upstream/pin.json").read_text()),
+    source_commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    source_archive = output / f"solartt-ui-{version}-source.tar.gz"
+    source_tar = subprocess.check_output(["git", "archive", "--format=tar", "--prefix=solartt-ui/", "HEAD"], cwd=ROOT)
+    source_archive.write_bytes(gzip.compress(source_tar, mtime=0))
+    metadata = {"version": version, "source_commit": source_commit,
+        "source_repository": "https://github.com/precox/SolarTT-UI",
+        "upstream": json.loads((ROOT / "upstream/pin.json").read_text()),
         "patch_sha256": hashlib.sha256((ROOT / "upstream/0001-managed-policy.patch").read_bytes()).hexdigest(),
         "cargo_lock_sha256": hashlib.sha256((ROOT / "Cargo.lock").read_bytes()).hexdigest()}
     (output / "build.json").write_text(json.dumps(metadata, indent=2) + "\n")
-    files = [deb, archive, output / "build.json"]
+    files = [deb, archive, source_archive, output / "build.json"]
     (output / "SHA256SUMS").write_text("".join(f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n" for p in files))
     print("Built development packages; no service installed or started")
 

@@ -1,0 +1,22 @@
+SolarTT-UI
+Copyright 2026 SolarTT-UI contributors
+
+Independent community project; not an official TrustTunnel product.
+Contains modified TrustTunnel library code. Original authors and copyright
+notices are preserved in the pinned upstream sources and third-party notices.
+See upstream-pin.json and managed-policy.patch in installed documentation.
+
+Cryptographic components retain their original licenses, independently of the
+Apache-2.0 license for SolarTT-UI. In particular, legacy BoringSSL/OpenSSL
+components require these acknowledgments:
+
+This product includes software developed by the OpenSSL Project
+for use in the OpenSSL Toolkit (http://www.openssl.org/).
+This product includes cryptographic software written by Eric Young
+(eay@cryptsoft.com).
+This product includes software written by Tim Hudson (tjh@cryptsoft.com).
+
+Full original license, copyright, disclaimer and attribution texts are shipped
+under /usr/share/doc/solartt-ui/third-party/. This notice does not replace those
+terms or imply endorsement by upstream authors. Preserve these acknowledgments
+in advertising material describing use/features of the included legacy crypto.

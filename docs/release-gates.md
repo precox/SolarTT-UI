@@ -1,4 +1,24 @@
-# v0.1 acceptance gates
+# Alpha publication and stable acceptance
+
+## First public alpha: required publication gates
+
+The tagged release workflow must pass all six prerequisites before it can publish:
+source/history/RustSec security scan; portable Rust and JavaScript tests; native
+transport/browser/package acceptance; upstream regressions; actual systemd VM
+upgrade/guarded recovery; and minimal Ubuntu runtime without build tools.
+
+Additional release guards require a unique alpha version/tag on `main`, exact
+source/build identity, the 297-package redistribution review and 548 notice
+hashes, SHA256SUMS for all published assets, private vulnerability reporting,
+and complete install/manual Android/private SSH instructions. Publication creates
+a draft, uploads verified assets, then marks it a **prerelease**. Attached
+`release-tests.json`, `build.json`, `minimal-runtime.json` and `pilot-report.json`
+record the actual results. The container report is not systemd VM evidence.
+
+These gates authorize the experimental alpha; they do not close the field
+acceptance items below. Alpha.1/alpha.2 were internal development baselines.
+
+## Stable: existing engineering evidence and remaining work
 
 - [ ] Official client compatibility: selected CLI and Android versions recorded.
 - [x] Revoke A closes every TLS/TCP/UDP session; B's long streams survive.
@@ -18,7 +38,7 @@
 - [x] Isolated HAProxy FIN cleanup preserves H2; actual Caddy PROXY v2 boundary tested.
 - [x] Development package payload/checksums and actual ELF runtime ABI/linkage checked.
 - [ ] Measured CPU/RSS, TCP throughput, UDP loss and disk sync costs.
-- [ ] CI, dependency licenses, checksums and reproducible upstream pin recorded.
+- [x] Exact dependency choices/notices and reconstructable upstream pin recorded; alpha publication verifies CI and asset checksums.
 - [x] Full Git history, tracked source and unpacked development packages scanned for secrets.
 - [x] Production lockfile has no known RustSec vulnerabilities; parser maintenance warnings recorded.
 - [x] Export audit, retained retry/ledger semantics and SQLite-full rollback tested.
@@ -33,8 +53,24 @@ migration, full-storage rollback, future-schema refusal and verified restore.
 The [isolated upgrade pilot](pilot-review-2026-10-06.md) also verifies actual
 alpha.1/alpha.2 packages, stopped-database rollback without lost quota charges,
 recovery with live payload and preservation of an active unrelated sentinel.
-The runner contains SDK/build tools; a minimal persistent Ubuntu VM, Android,
-operational ACME renewal and sustained observation remain manual requirements.
+The package/upgrade VM contains SDK/build tools. A separate minimal Ubuntu
+container checks runtime operation without them; it does not establish persistent
+minimal-VM, Android, operational ACME or sustained-load acceptance.
+
+## Next iteration: stable field plan
+
+- Record Android app/OS versions and actual manual setup across Wi-Fi/mobile,
+  switching and reconnects; verify public IPv4, DNS and IPv6-off behavior.
+- On an explicitly coordinated test account, exercise real-network quota, expiry
+  and revocation for A while B maintains a long TCP/UDP stream.
+- Observe representative workload for 24–72 h: CPU, RSS, socket/FD counts,
+  throughput/UDP loss, log/SQLite growth and memory pressure. No mandatory two-week
+  wait or advertised users-per-node estimate follows from this alpha.
+- Validate an actual future ACME certificate replacement and an independent
+  off-host restore with matching key, without resetting committed quota usage.
+- Triage alpha feedback; decide stable supported versions and measured sizing.
+
+Do not conduct disruptive tests on owner profiles merely to fill these boxes.
 
 Device-limit and mobile-card evidence is in [the 2026-10-15 verification record](verification.md).
 That limit counts non-revoked credentials, including offline profiles; copying

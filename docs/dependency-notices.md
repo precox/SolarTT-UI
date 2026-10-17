@@ -7,8 +7,9 @@ test and target-specific dependencies; it is broader than the Linux runtime.
 
 The collector currently accounts for 297 non-SolarTT packages from Cargo.lock.
 It fails if a package lacks declared license metadata or preserved notices.
-This completeness check does not replace review of license obligations before
-publishing a stable release.
+Redistribution obligations apply to alpha and stable releases. The first alpha
+also requires the [exact redistribution review](dependency-redistribution-review.md)
+and `python3 scripts/license_review.py` after collection.
 
 Some crates.io archives omit their repository license files. Supplemental files
 in `upstream/notices/` preserve those originals, with the repository commit,
@@ -19,9 +20,8 @@ import-library archives lack that metadata; their notices come from the matching
 license grants and copyrights in AUTHORS; that file is preserved directly.
 
 The root SolarTT-UI Apache-2.0 license does not relicense dependencies. Their
-original expressions and attribution files remain in the package. The collector
-records the declared alternatives without choosing a license on behalf of the
-maintainer. No binary from the official CLI compatibility fixture is included
+original expressions and attribution files remain in the package. The collector records the declared alternatives; `upstream/license-review.json`
+separately records the selected alternatives and preserved texts for the release. No binary from the official CLI compatibility fixture is included
 in SolarTT packages. The official Caddy fixture is also test-only and is not
 redistributed.
 
@@ -54,3 +54,11 @@ particular, inspect the preserved nested notices for AWS-LC, BoringSSL, ring,
 quiche and bundled SQLite rather than relying only on the outer crate's license
 field. The full release obligation review therefore remains open; the inventory
 check is not a reason to mark the complete license gate passed.
+
+## First alpha release review — 2026-10-17
+
+The earlier inventory-only limitation above is closed for the exact reviewed
+dependency set by [the redistribution record](dependency-redistribution-review.md).
+It records alternative choices, native component obligations, OpenSSL/SSLeay
+acknowledgments and modified-source notices. New dependency/notice changes
+require a new review; an inventory-only pass cannot authorize redistribution.

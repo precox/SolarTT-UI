@@ -16,7 +16,7 @@ MARKER = DEST / ".solartt-prepared"
 
 def main():
     patches = sorted((ROOT / "upstream").glob("*.patch"))
-    stamp = hashlib.sha256(json.dumps(PIN, sort_keys=True).encode() +
+    stamp = hashlib.sha256(Path(__file__).read_bytes() + json.dumps(PIN, sort_keys=True).encode() +
         b"".join(p.read_bytes() for p in patches)).hexdigest()
     if MARKER.is_file() and MARKER.read_text().strip() == stamp:
         print("Pinned upstream already prepared")
@@ -45,6 +45,18 @@ def main():
             cwd=ROOT, check=True)
         subprocess.run(["git", "apply", "--directory=.upstream", str(patch)],
             cwd=ROOT, check=True)
+    # Apache-2.0 section 4(b): each changed source file carries its own notice.
+    changed = {line.split(" b/", 1)[1] for patch in patches
+               for line in patch.read_text().splitlines() if line.startswith("+++ b/")}
+    for name in sorted(changed):
+        path = DEST / name
+        if not path.resolve().is_relative_to(DEST.resolve()):
+            raise SystemExit("Unsafe modified-source path")
+        prefix = "//" if path.suffix == ".rs" else "#" if path.suffix == ".toml" else None
+        if prefix is None:
+            raise SystemExit("Review modification notice syntax for " + name)
+        notice = prefix + " Modified by SolarTT-UI contributors; see upstream/*.patch in SolarTT-UI.\n"
+        path.write_text(notice + path.read_text())
     MARKER.write_text(stamp + "\n")
     print("Prepared pinned TrustTunnel with", len(patches), "patches")
 

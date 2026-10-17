@@ -1,18 +1,31 @@
 # Security
 
-SolarTT-UI is pre-release software. No supported stable version exists yet.
-Do not report vulnerabilities with credentials or exploitable details in public
-issues. Until GitHub private vulnerability reporting is enabled by the owner,
-contact the repository owner through an existing private channel.
+SolarTT-UI v0.1.0-alpha.3 is experimental. No supported stable version exists.
+Keep administration private and retain a tested backup before a pilot upgrade.
 
-Trust boundary: the host administrator and root are trusted. The panel does not
-execute shell commands, edit firewall rules or access arbitrary files. The agent
-control socket and encryption key are restricted OS resources. VPN profile exports
-are secrets and must not be logged, cached or sent to external QR services.
+## Reporting a vulnerability
 
-Review record: [2026-10-05 engineering security review](docs/security-review-2026-10-05.md).
-Run `python3 scripts/security_check.py source` before publishing source changes.
-CI also scans unpacked packages before uploading artifacts. A passing scan does
-not establish that the alpha is suitable for production.
+Use [GitHub's private vulnerability report form](https://github.com/precox/SolarTT-UI/security/advisories/new).
+Do not put exploitable details, credentials, profile exports, keys, database files
+or raw user logs in public issues. A sanitized ordinary bug report can be filed
+in Issues. The maintainer reviews reports on a best-effort basis; there is no
+response-time SLA for this alpha. Check the repository reporting form before
+sending confidential material; publication requires private reporting enabled.
 
-Current alpha.2 follow-up: [audited exports, storage retention and failure tests](docs/storage-review-2026-10-06.md).
+## Boundaries
+
+Root and the host administrator are trusted. The panel cannot execute shell
+commands, edit firewall rules or access arbitrary files. The managed agent owns
+the credential encryption key and restricted Unix control socket; the panel
+receives audited profile exports only. Exports remain secrets even when encoded
+as a link, QR or TOML. Do not send them to external QR services.
+
+Per-user issued-profile limits do not identify physical devices or prevent a
+profile being copied. Payload quotas are not network-billing quotas. A cover
+page and an inconspicuous hostname do not establish censorship resistance.
+
+CI scans full Git history, tracked source and unpacked release artifacts and
+checks RustSec advisories. These are bounded engineering checks, not a guarantee
+that no vulnerabilities exist. See [release gates](docs/release-gates.md),
+[engineering review](docs/security-review-2026-10-05.md) and
+[storage/audit semantics](docs/storage-and-audit.md).

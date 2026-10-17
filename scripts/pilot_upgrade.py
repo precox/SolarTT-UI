@@ -19,6 +19,8 @@ CONFIG = Path("/etc/solartt")
 DATA = Path("/var/lib/solartt")
 PANEL_DATA = Path("/var/lib/solartt-panel")
 SERVICES = ("solartt-agent.service", "solartt-panel.service")
+CURRENT_VERSION = tomllib.loads((ROOT / "Cargo.toml").read_text())["workspace"]["package"]["version"]
+CURRENT_DEB_VERSION = CURRENT_VERSION.replace("-alpha.", "~alpha")
 SENTINEL = "solartt-pilot-sentinel.service"
 STATE_CODE = """import json,sqlite3,sys
 from pathlib import Path
@@ -213,7 +215,7 @@ class Pilot:
         old = next((ROOT / ".dev/pilot-baseline/dist").glob("*.deb"))
         new = next((ROOT / "dist/current").glob("*.deb"))
         assert json.loads((ROOT / ".dev/pilot-baseline/dist/build.json").read_text())["version"] == baseline_pin["version"]
-        assert json.loads((ROOT / "dist/current/build.json").read_text())["version"] == "0.1.0-alpha.2"
+        assert json.loads((ROOT / "dist/current/build.json").read_text())["version"] == CURRENT_VERSION
         for folder in (ROOT / "dist/current", ROOT / ".dev/pilot-baseline/dist"):
             for line in (folder / "SHA256SUMS").read_text().splitlines():
                 expected, name = line.split("  ", 1)
@@ -251,7 +253,7 @@ class Pilot:
         self.record("fresh_alpha1_install_and_real_tcp_udp_payload")
 
         run("sudo", "dpkg", "-i", str(new))
-        self.installed("0.1.0~alpha2")
+        self.installed(CURRENT_DEB_VERSION)
         assert identities == [(pwd.getpwnam(name).pw_uid, pwd.getpwnam(name).pw_gid)
                               for name in ("solartt-agent", "solartt-panel")]
         assert key_digest == self.digest(DATA / "encryption.key")
@@ -260,7 +262,7 @@ class Pilot:
         run("sudo", "-u", "solartt-agent", "solartt-admin", "check", str(snapshot1),
             str(DATA / "encryption.key"), "UTC")
         assert self.state(snapshot1)["schema"] == 1 and self.digest(snapshot1) == snapshot1_digest
-        self.start("0.1.0-alpha.2")
+        self.start(CURRENT_VERSION)
         after = self.state()
         assert after["schema"] == 2 and {k:after[k] for k in before if k != "schema"} == {
             k:before[k] for k in before if k != "schema"}
@@ -271,7 +273,7 @@ class Pilot:
             str(self.database), str(DATA / "encryption.key"), "UTC", str(live_candidate), success=False)
         run("sudo", "test", "!", "-e", str(live_candidate))
         self.stop()
-        self.record("actual_alpha1_to_alpha2_migration_and_identity_preservation")
+        self.record("actual_alpha1_to_current_migration_and_identity_preservation")
 
         rollback = DATA / "rollback-schema1.sqlite"
         run("sudo", "-u", "solartt-agent", "solartt-admin", "rollback", str(snapshot1),
@@ -293,8 +295,8 @@ class Pilot:
         self.record("old_binary_schema2_refusal_and_compatible_snapshot_rollback")
 
         run("sudo", "dpkg", "-i", str(new))
-        self.installed("0.1.0~alpha2")
-        self.start("0.1.0-alpha.2")
+        self.installed(CURRENT_DEB_VERSION)
+        self.start(CURRENT_VERSION)
         self.same_profile(first, self.profile(credential))
         self.traffic(first)
         self.stop()
@@ -329,7 +331,7 @@ class Pilot:
             str(DATA / "encryption.key"), str(restored), success=False)
         assert restored_digest == self.digest(restored)
         self.select_database(restored)
-        self.start("0.1.0-alpha.2")
+        self.start(CURRENT_VERSION)
         self.same_profile(first, self.profile(credential))
         recovered = self.state()
         assert recovered["charged"] == used["charged"] and recovered["confirmed"] == used["confirmed"]
@@ -348,7 +350,7 @@ class Pilot:
         self.unchanged_sentinel()
         self.record("package_removal_retains_data_and_unrelated_service")
         self.report.update({"baseline_commit": baseline_pin["commit"], "baseline_version": "0.1.0-alpha.1",
-                            "current_version": "0.1.0-alpha.2", "schema_before": 1, "schema_after": 2,
+                            "current_version": CURRENT_VERSION, "schema_before": 1, "schema_after": 2,
                             "baseline_confirmed_payload": before["confirmed"],
                             "before_restore_confirmed_payload": used["confirmed"],
                             "final_confirmed_payload": final["confirmed"],

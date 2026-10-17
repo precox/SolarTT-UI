@@ -1,4 +1,4 @@
-# Installation of development builds
+# Install v0.1.0-alpha.3
 
 Supported packaging target: **Ubuntu 24.04, Linux x86_64, systemd**. Other
 Linux distributions and older glibc versions have not been verified. These
@@ -12,13 +12,30 @@ and sustained concurrent-user capacity remain open.
 
 ## Package
 
-Download the CI development artifact, check SHA256SUMS, then inspect the package:
+Use an empty directory and download the matching assets from the
+[first alpha release](https://github.com/precox/SolarTT-UI/releases/tag/v0.1.0-alpha.3).
+The deb is the supported installation method; the binary tar has identical file
+payloads but does not perform service account setup. The source archive is for
+reconstruction, not a runtime installer. On a minimal Ubuntu system:
+
+```sh
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl
+curl -fLO https://github.com/precox/SolarTT-UI/releases/download/v0.1.0-alpha.3/SHA256SUMS
+curl -fLO https://github.com/precox/SolarTT-UI/releases/download/v0.1.0-alpha.3/solartt-ui_0.1.0~alpha3_amd64.deb
+# This verifies the selected download; other manifest entries are intentionally absent.
+sha256sum --ignore-missing -c SHA256SUMS
+sudo apt-get install ./solartt-ui_0.1.0~alpha3_amd64.deb
+```
+
+APT installs the declared runtime libraries; no Rust, compiler, CMake, Node or
+Chromium is needed. If all release assets were downloaded, inspect them with:
 
 ```sh
 sha256sum -c SHA256SUMS
-dpkg-deb --info solartt-ui_0.1.0~alpha2_amd64.deb
-dpkg-deb --contents solartt-ui_0.1.0~alpha2_amd64.deb
-sudo dpkg -i solartt-ui_0.1.0~alpha2_amd64.deb
+dpkg-deb --info solartt-ui_0.1.0~alpha3_amd64.deb
+dpkg-deb --contents solartt-ui_0.1.0~alpha3_amd64.deb
+sudo apt-get install ./solartt-ui_0.1.0~alpha3_amd64.deb
 ```
 
 The package creates dedicated service accounts and directories. It does not
@@ -28,12 +45,25 @@ release or a guarantee of authenticity.
 
 ## Configuration
 
-Copy examples from `/usr/share/doc/solartt-ui/examples/` to `/etc/solartt/`.
-Set files to root:solartt-control 0640. Review all addresses and port conflicts.
+Copy the four configuration examples with explicit ownership:
+
+```sh
+for solartt_config in agent.toml endpoint.toml hosts.toml panel.toml; do
+  sudo install -o root -g solartt-control -m 0640 "/usr/share/doc/solartt-ui/examples/$solartt_config" "/etc/solartt/$solartt_config"
+done
+```
+
+Review all addresses and port conflicts with `sudo ss -ltnup`. Edit copies with
+`sudoedit /etc/solartt/agent.toml /etc/solartt/hosts.toml` before starting anything.
+Replace the example hostname/address and panel UID; never use documentation
+addresses as working server endpoints.
 The endpoint and metrics must bind loopback; expose the endpoint through a
-reviewed TLS passthrough proxy. Keep panel HTTPS on a separate admin hostname.
-Its reverse proxy must preserve the browser Host header. Do not expose the
-Unix socket, metrics or the panel's HTTP port directly to the internet.
+reviewed TLS passthrough proxy. The packaged panel example uses
+`listen = "127.0.0.1:18081"` and `public_origin = "http://127.0.0.1:18081"` for
+private SSH access. Do not open this port in the firewall or publish an admin
+hostname. Keep the Unix socket and metrics private too. An optional HTTPS admin
+proxy is a separate operator-reviewed access-control decision, must preserve
+Host, and requires a matching `public_origin`.
 
 Use the actual panel UID in `agent.toml`:
 
@@ -81,6 +111,13 @@ printf '%s' "$solartt_admin_password" | sudo -n -u solartt-panel solartt-panel -
 unset solartt_admin_password
 ```
 
+Provision a DNS hostname, a valid certificate and an existing local HTTP cover
+origin before enabling the public TLS route. The panel does not issue certificates
+or supply a cover web server. `endpoint.toml` defaults to TLS `127.0.0.1:9443`,
+cover `127.0.0.1:9080` and metrics `127.0.0.1:1987`; arrange a local HTTP site at
+that cover address or choose an existing trusted local origin. A cover page is
+ordinary fallback behavior, not evidence of resistance to active classification.
+
 Install the CA certificate chain and private key named in `hosts.toml` into
 `/etc/solartt/tls/`, owned root:solartt-agent, modes 0640. The panel cannot access
 this directory. Use a valid publicly trusted certificate for actual clients.
@@ -96,6 +133,28 @@ sudo systemctl status solartt-agent.service solartt-panel.service
 
 Enable services at boot separately once the pilot checks pass. Empty users
 reject VPN authentication; creating the first user is an administrator action.
+
+## Private administrator access
+
+From the administrator's machine, use an existing authorized SSH account:
+
+```sh
+ssh -N -L 127.0.0.1:18081:127.0.0.1:18081 YOUR_USER@YOUR_SERVER
+```
+
+Open exactly `http://127.0.0.1:18081` in the local browser. In Termius create a
+**Local** forwarding rule: local bind `127.0.0.1`, local port `18081`, your SSH
+host/account as Intermediate Host, destination `127.0.0.1`, destination port
+`18081`. Keep the forwarding connection active. The configured browser Host and
+Origin must match the panel's `public_origin`; changing just the local port can
+make authentication fail. If the VPN prevents an SSH connection to its own
+server, exclude the SSH app/server route in the client or use an already
+authorized separate SSH entry point; do not make the panel public as a workaround.
+
+Log in as `admin` with the password initialized above. Creating an administrator
+does not issue a VPN account. Create a VPN user, set its profile limit, add a
+device and follow [manual Android setup](client-compatibility.md). Each exported
+profile is a secret. Never paste profiles into public issues.
 
 ## Certificate renewal
 

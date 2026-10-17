@@ -2,6 +2,7 @@ name: CI
 on:
   push:
     branches: [main, 'dev/**']
+    tags: ['v*-alpha.*']
   pull_request:
   workflow_dispatch:
 permissions:
@@ -37,6 +38,7 @@ jobs:
       - run: cargo fmt --all --check
       - run: node --check crates/panel/assets/app.js && node --check scripts/browser_smoke.mjs
       - run: node --test scripts/panel_state_tests.mjs
+      - run: python3 -B -m unittest discover -s scripts -p test_release_tools.py
       - run: cargo clippy --locked -p solartt-control-api -p solartt-policy -p solartt-profile-export -p solartt-panel -p solartt-admin --all-targets -- -D warnings
       - run: cargo test --locked -p solartt-control-api -p solartt-policy -p solartt-profile-export -p solartt-panel -p solartt-admin
   native:
@@ -76,6 +78,7 @@ jobs:
           mkdir -p dist
           cargo test --locked --release -p solartt-agent --test transport measure_loopback_transport_and_durable_leases -- --ignored --nocapture --test-threads=1 | tee dist/measurements.txt
       - run: cargo metadata --locked --format-version 1 | python3 scripts/licenses.py
+      - run: python3 scripts/license_review.py
       - name: Package with a private builder umask
         run: |
           umask 077
@@ -158,3 +161,62 @@ jobs:
         run: cargo test --manifest-path .upstream/lib/Cargo.toml --locked --lib -- --test-threads=1
         env:
           CARGO_TARGET_DIR: target/upstream-regression
+
+  minimal:
+    needs: native
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: solartt-linux-x86_64-development
+          path: dist/current
+      - name: Prepare runtime-only Ubuntu test image
+        run: |
+          test "$GITHUB_ACTIONS" = true
+          test "$RUNNER_OS" = Linux
+          mkdir -p .dev/minimal-context dist/minimal
+          cp dist/current/*.deb .dev/minimal-context/solartt.deb
+          cp scripts/minimal_runtime.py .dev/minimal-context/
+          docker build --file packaging/minimal-runtime.Dockerfile --tag solartt-minimal-runtime .dev/minimal-context
+      - name: Exercise packaged runtime without a build toolchain
+        run: |
+          docker run --rm --network none --mount type=bind,src="$PWD/dist/minimal",dst=/report solartt-minimal-runtime
+          docker image inspect solartt-minimal-runtime --format '{{.Id}}' > dist/minimal/runtime-image-id.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: solartt-minimal-runtime
+          path: dist/minimal/
+          retention-days: 7
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+    needs: [security, portable, native, legacy, pilot, minimal]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: solartt-linux-x86_64-development
+          path: dist/release-input
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: solartt-isolated-upgrade-pilot
+          path: dist/pilot
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: solartt-minimal-runtime
+          path: dist/minimal
+      - name: Publish verified alpha assets
+        run: python3 scripts/publish_alpha.py
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_JOB_RESULTS: ${{ toJSON(needs) }}

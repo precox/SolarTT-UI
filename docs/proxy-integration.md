@@ -18,9 +18,11 @@ actual HAProxy peer, typically `127.0.0.1/32`, and reject untrusted PROXY source
 applied before those HTTP matchers, so a broad listener allowlist is unsafe.
 See [Caddy's listener-wrapper documentation](https://caddyserver.com/docs/caddyfile/options#proxy_protocol).
 
-The panel requires its own reviewed HTTPS reverse-proxy route and canonical
-`public_origin`; do not forward that hostname into the VPN backend. Preserve
-existing HTTP/ACME routes and the site's certificate management.
+The panel normally stays on loopback behind private SSH forwarding, with
+`public_origin = "http://127.0.0.1:18081"`; no public admin hostname is required.
+Optional HTTPS administration requires a separately reviewed, access-restricted
+route and matching origin; never route it into the VPN backend. Preserve existing
+HTTP/ACME routes and the site's certificate management.
 
 ## Half-close timeouts
 

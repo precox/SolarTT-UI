@@ -9,7 +9,7 @@ runtime dependencies of the packaged panel/agent. Browser acceptance runs in CI;
 administrators use their own browser to open the web interface.
 
 The runtime contains separate `solartt-panel`, `solartt-agent` and host-only
-`solartt-admin` binaries. A reviewed TLS passthrough proxy and administrative
+`solartt-admin` binaries. A reviewed TLS passthrough proxy and optional administrative
 HTTPS reverse proxy add their own resource use. The panel does not forward VPN
 payload; the TrustTunnel agent does.
 
@@ -29,19 +29,11 @@ extra headroom for a shared test node; 4 GiB is not a panel requirement. The VM
 disk target is also not the installed package size. Measure actual services,
 logs and backups before publishing a minimum disk requirement.
 
-The 2-GiB figure sizes the whole VM, including existing services and headroom;
-it is not an amount the application must allocate. Installed SolarTT consumption
-has not yet been measured on the intended node. Its configured panel/agent
-ceilings total 704 MiB. On the 2026-10-08 18:46 UTC follow-up, the existing UK node
-had about 1498 MiB available, leaving approximately 794 MiB after budgeting both
-ceilings. This arithmetic excludes additional proxy and future unrelated-workload
-growth; it is not a measured peak or a permanent memory reservation.
-
-On 2026-10-08 the existing 2-vCPU / 1967-MiB UK node had 1510 MiB available with
-its unrelated browser service stopped. That snapshot supports attempting a
-small monitored pilot; it does not validate sustained capacity or concurrent
-browser workloads. The unrelated browser remains managed on demand and its
-future peak must be accounted for separately.
+The 2-GiB figure budgets the whole VM, including OS, existing services and
+headroom. It is not an allocation requested by SolarTT. A shared 1-vCPU/2-GiB
+Ubuntu node has run the small operator pilot; this establishes feasibility for
+that workload, not a measured minimum or a capacity promise. No native builds
+should run on such a shared node.
 
 ## Configured memory ceilings
 
@@ -76,9 +68,12 @@ panel, host proxies and full-node overhead. It therefore cannot establish the
 panel's memory use or the complete deployment footprint. See
 [the verification record](verification.md).
 
-Standalone installed panel RSS, the installed agent/proxy footprint under
-representative concurrent traffic, long-lived sessions, and CPU/disk costs on
-the intended node remain to be recorded during the authorized pilot. Before
+A 2026-10-17 installed-node low-load point sample was about 4 MiB panel RSS and
+9 MiB agent RSS. It excludes host proxies and does not represent a simultaneous
+loaded peak. The package's runtime ELF libraries are checked independently in CI;
+actual installed disk size is included in the minimal-runtime release report.
+Representative concurrent traffic, long-lived sessions and CPU/disk costs still
+need sustained measurement. Before
 publishing stable minimum requirements or a users-per-node estimate, measure
 idle, normal operation and bounded peak behavior, including concurrent
 administrative login/export and unrelated scheduled workloads.
@@ -91,7 +86,8 @@ can help reclaim RAM; active swapping adds I/O latency, and cgroup memory/swap
 limits still apply. Do not count swap as fast RAM or as proof that a service
 cannot run out of memory. See [kernel memory concepts](https://docs.kernel.org/admin-guide/mm/concepts.html)
 and [cgroup memory/swap limits](https://docs.kernel.org/admin-guide/cgroup-v2.html).
-Swap has not been enabled by this review.
+A 1-GiB swap file exists on the operator pilot node; the package does not create
+or tune swap on an installing machine.
 
 Basic pilot planning: about one working day for installation and functional
 client/recovery checks, followed by 24–72 hours of observation. That is roughly

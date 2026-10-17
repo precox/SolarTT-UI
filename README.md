@@ -2,77 +2,106 @@
 
 **Independent, self-hosted management for TrustTunnel.**
 
-User provisioning, device profile limits, traffic quotas, expiry, profile export, and individual session
-revocation, with a lightweight web interface. Community project, not an official
-TrustTunnel product.
+A lightweight web panel and managed TrustTunnel endpoint: users, individual
+device profiles, traffic quotas, expiry, rotation and revocation. Community
+project, not an official TrustTunnel product.
 
-## Development status
+## First public alpha
 
-Version 0.1 is under development. Current development packages are alpha.2 with
-audited profile exports, bounded storage and schema-2 migration. Preserve a
-compatible snapshot before upgrading; alpha.1 cannot open schema 2. See
-[storage and audit semantics](docs/storage-and-audit.md). This is not a stable or
-production-ready release. A separately authorized operator pilot is running;
-[verification](docs/verification.md) records its scope and remaining gates.
-Actual alpha.1 → alpha.2 upgrade, guarded rollback and restore passed on a fresh
-GitHub-hosted VM: [pilot evidence](docs/pilot-review-2026-10-06.md).
-Android and sustained real-network acceptance remain pending; see the
-[manual pilot plan](docs/manual-pilot-plan.md).
-The packaging permission fix and private-umask Ubuntu acceptance passed on
-2026-10-11; an existing-node isolated process pilot also passed:
-[current process and CI evidence](docs/process-pilot-review-2026-10-11.md).
-Release gates include per-user TCP/UDP quotas, closure of that user's TLS sessions
-without interrupting another user, crash recovery, client compatibility and
-installation on a clean VM.
+**v0.1.0-alpha.3** is the first public alpha. Alpha.1 and alpha.2 were development
+builds, not public releases. Intended for an operator-supervised single-node
+pilot; there is no stable version or guaranteed concurrent-user capacity.
+
+[Download the alpha](https://github.com/precox/SolarTT-UI/releases/tag/v0.1.0-alpha.3)
+→ [install on Ubuntu 24.04](docs/install.md)
+→ [client setup](docs/client-compatibility.md).
+Published assets include the amd64 `.deb`, binary `.tar.gz`, source archive,
+SHA256SUMS, build provenance and test reports. No Rust/build tools are required
+on the runtime node. Read [requirements](docs/system-requirements.md) and
+[security](SECURITY.md) before installing. Keep the panel private over SSH
+forwarding; the public TLS route serves the VPN and a separate cover origin.
+
+## Features and boundaries
+
+- Per-user quota shared by all profiles and both traffic directions; expiry and
+  calendar resets, durable accounting and documented crash uncertainty.
+- Separate profile credentials, rotation, immediate revocation and issued-profile
+  limits. A limit counts non-revoked profiles, including offline profiles. It
+  cannot distinguish copies of one profile on multiple physical devices.
+- Mobile user/device cards and copyable manual Android connection fields.
+  Deep link, local QR and TOML are secondary formats, dependent on client support.
+- Restricted Unix control socket, encrypted credential storage, audited exports,
+  bounded database/audit retention, backup and guarded restore.
+
+Scope: **Ubuntu 24.04 x86_64, one node, HTTP/2, TCP and UDP**. IPv6, QUIC/HTTP3,
+ICMP, speed shaping, payments and multi-node orchestration are outside v0.1.
+Quota counts forwarded payload, not the provider's network bill. TLS connection
+counts describe transports, not physical devices or a fixed sessions-per-phone
+ratio. See [architecture](docs/architecture.md).
 
 ## Architecture
 
 ```mermaid
 flowchart LR
     Client[TrustTunnel client] --> Proxy[HAProxy TLS passthrough]
-    Proxy --> Agent[SolarTT agent: TrustTunnel TLS and H2]
+    Proxy --> Agent[SolarTT agent: TLS and H2]
     Agent --> Internet[Internet]
     Agent --> Cover[HTTP cover origin]
-    Panel[SolarTT web panel] -->|Restricted Unix socket| Agent
+    Browser[Admin browser] --> SSH[Private SSH forwarding]
+    SSH --> Panel[Loopback web panel]
+    Panel -->|Restricted Unix socket| Agent
     Agent --> DB[(SQLite)]
 ```
 
-The initial scope is one Linux x86_64 node, HTTP/2, TCP and UDP. IPv6, QUIC,
-ICMP, speed shaping, payments and multi-node orchestration are outside v0.1.
-Quota means forwarded payload in both directions, not the provider's network bill.
+The package does not alter an existing HAProxy, Caddy, firewall or SSH service.
+The default supported topology colocates agent and panel, which communicate
+through a local Unix socket; cross-host agent management is not implemented.
 
 ## Device setup
 
-Open a user's **Access settings** to set the device profile limit (0–16), or set it
-when creating the user. Choose **Add device**, enter a name, and create its
-connection profile. The next screen opens the TrustTunnel app, shows a local QR,
-or lets you copy the link/download TOML. Each profile has separate revocation.
-The layout uses cards on phones; password changes and revocation are under More.
+In **Access settings**, set a user's issued-profile limit (0–16), or set it when
+creating the user. Choose **Add device**, name the device and create its profile.
+The primary setup card shows each Android field with Copy buttons: address,
+certificate domain, SNI, username, password and HTTP/2. Never publish screenshots
+of credentials. Revoke profiles before lowering the limit below the issued count.
+One profile per device is recommended for independent rotation and revocation.
 
-The limit counts issued, non-revoked profiles, including offline ones. It does
-not detect a profile copied to another physical device. Revoke profiles before
-lowering the limit below their current count. See [access semantics](docs/architecture.md).
+## Verification and next iteration
 
-## Build prerequisites
+CI covers functional/policy tests, JavaScript session state, real browser tests,
+TLS/H2 TCP/UDP, quotas/revocation isolation, package lifecycle and guarded
+upgrade/restore on disposable runners. A separate minimal Ubuntu container checks
+runtime binaries and packaged instructions without a compiler or browser SDK.
+These are different environments and are reported separately.
 
-Rust 1.95.0, Python 3, a C/C++ compiler, CMake and libclang. Heavy native builds
-run in CI; production nodes receive packaged binaries.
+Android versions/networks, network switching, operational certificate renewal,
+off-host recovery and representative 24–72 h resource observation remain stable
+acceptance work. See [alpha/stable gates](docs/release-gates.md),
+[verification history](docs/verification.md) and [manual pilot](docs/manual-pilot-plan.md).
+
+## Build and contribute
+
+Build prerequisites: Rust 1.95.0, Python 3, C/C++ compiler, CMake and libclang.
+Heavy native builds run in CI, not on a shared VPN node.
 
 ```sh
 python3 scripts/prepare_upstream.py
-cargo test
-# Native/network tests require the full C/C++ toolchain:
-cargo test -p solartt-agent
+cargo test --locked
+# Full native toolchain required:
+cargo test --locked -p solartt-agent -- --test-threads=1
 ```
 
-See [architecture](docs/architecture.md), [release gates](docs/release-gates.md),
-[runtime requirements and pilot sizing](docs/system-requirements.md),
-[installation](docs/install.md), [backup and upgrade](docs/backup-upgrade.md),
-[client compatibility](docs/client-compatibility.md),
-[dependency notices](docs/dependency-notices.md), [contributing](CONTRIBUTING.md)
-and [security](SECURITY.md).
+[Contributing](CONTRIBUTING.md) · [backup/upgrade](docs/backup-upgrade.md) ·
+[proxy integration](docs/proxy-integration.md) ·
+[dependency redistribution review](docs/dependency-redistribution-review.md).
 
-## License
+## License and acknowledgments
 
-Apache-2.0. TrustTunnel retains its upstream copyright and license. Derived
-builds identify their exact upstream commit and patch set.
+Apache-2.0 for SolarTT-UI. Dependencies retain their original licenses. Exact
+upstream pin, patches and third-party attribution texts accompany binary builds.
+See [NOTICE](NOTICE) and [dependency notices](docs/dependency-notices.md).
+
+This product includes software developed by the OpenSSL Project for use in the
+OpenSSL Toolkit (http://www.openssl.org/). This product includes cryptographic
+software written by Eric Young (eay@cryptsoft.com). This product includes
+software written by Tim Hudson (tjh@cryptsoft.com).
