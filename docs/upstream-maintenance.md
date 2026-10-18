@@ -39,13 +39,17 @@ if the API incorrectly labels them stable. Version comparison is numeric;
 neither API order, publication date nor the `/releases/latest` shortcut selects
 the candidate. A republished older version does not become an upgrade.
 
-The pin has no version field. To establish the current version, the watcher
-resolves stable release tags through the commits API (including annotated tags)
-and requires an exact match to the pinned commit. `target_commitish` is not
-trusted: it can name a branch. Unknown pins, ambiguous version aliases,
-unresolvable tags and malformed API responses fail the run before any issue is
-created. Proposed commits in issues are observations; the update PR must verify
-the source and calculate the archive checksum independently.
+The pin records the exact release `tag` as well as the commit and archive SHA256.
+The watcher requires that tag to identify a published stable release and resolves
+it through the commits API (including annotated tags) to verify the pinned commit.
+A newer tag on the same commit is still a new version and gets its own review
+task; matching source commits never advance the current version automatically.
+`target_commitish` is not trusted: it can name a branch. Missing or invalid pins,
+unpublished/non-stable pinned tags, tag/commit mismatches, ambiguous version
+aliases, unresolvable tags and malformed API responses fail the run before any
+issue is created. Proposed commits in issues are observations; the update PR must
+verify the source and calculate the archive checksum independently. Dependency
+preparation continues to download by immutable commit and verify the archive SHA256.
 
 Deduplication reads all pages of **open and closed** issues, excluding PRs. Each
 task has a canonical version in its title and a hidden marker containing the
@@ -86,7 +90,7 @@ They run in portable CI and before each discovery job.
    source changes, wire/client compatibility, configuration, managed hooks,
    HTTP/2 forwarding, quota accounting and revocation behavior.
 2. Port the managed patch against the chosen source. Update `upstream/pin.json`
-   with the exact commit and independently verified archive SHA256. Review
+   with the exact release tag, commit and independently verified archive SHA256. Review
    `scripts/prepare_upstream.py` and `scripts/update_patch.py` when the source
    layout changes; retain SHA verification and modified-source notices. Run the
    preparation script to reconstruct the pinned patched dependency. Never drop

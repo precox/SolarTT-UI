@@ -3,6 +3,9 @@
 Pinned upstream: TrustTunnel/TrustTunnel v1.1.0, commit
 `fab5b8353a19332f935fa30869307d37d4a898d1`. Apache-2.0.
 
+`pin.json` records the exact release tag for version tracking. The watcher checks
+that tag against the commit; builds still download by commit and verify SHA256.
+
 `python3 scripts/prepare_upstream.py` retrieves a SHA256-checked archive and
 applies reviewed patches from this directory to `.upstream/`. This generated
 directory is excluded from Git. All changes to upstream are recorded in patch

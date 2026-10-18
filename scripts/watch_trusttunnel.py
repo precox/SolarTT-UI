@@ -169,24 +169,22 @@ Keep the hidden marker when editing this issue. Closed issues also suppress repe
 
 
 def watch(api, pin, create=False):
-    if (pin.get("repository") != UPSTREAM
+    if (not isinstance(pin, dict) or pin.get("repository") != UPSTREAM
+            or stable_version(pin.get("tag")) is None
             or not isinstance(pin.get("commit"), str) or not SHA.fullmatch(pin["commit"])
             or not isinstance(pin.get("archive_sha256"), str)
             or not re.fullmatch(r"[0-9a-f]{64}", pin["archive_sha256"])):
         raise WatchError("Invalid TrustTunnel pin")
     releases = stable_releases(api.pages(f"/repos/{UPSTREAM}/releases"))
-    resolved = {}
-    current = None
-    for release in releases:
-        resolved[release.tag] = api.commit(release.tag)
-        if resolved[release.tag] == pin["commit"]:
-            current = release
-            break
+    current = next((release for release in releases if release.tag == pin["tag"]), None)
     if current is None:
-        raise WatchError("Pinned commit does not match a published stable release; review pin/tags manually")
+        raise WatchError("Pinned tag is not a published stable release; review pin/tags manually")
+    if api.commit(current.tag) != pin["commit"]:
+        raise WatchError("Pinned tag does not match the pinned commit; review pin/tags manually")
     candidates = sorted((r for r in releases if r.version > current.version), key=lambda r: r.version)
     # Finish all discovery/validation before the first write. An API failure
     # must never masquerade as 'no new releases' or an empty deduplication set.
+    resolved = {release.tag: api.commit(release.tag) for release in candidates}
     issues = list(api.pages(f"/repos/{DOWNSTREAM}/issues?state=all")) if candidates else []
     result = {"current": current.canonical, "current_commit": pin["commit"],
               "mode": "create" if create else "dry-run", "releases": []}
