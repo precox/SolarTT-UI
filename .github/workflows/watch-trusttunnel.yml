@@ -1,4 +1,6 @@
 name: Watch TrustTunnel releases
+run-name: >-
+  Watch TrustTunnel releases${{ inputs.notification_test && inputs.notification_test != 'none' && format(' [TEST] {0}', inputs.notification_test) || '' }}
 on:
   schedule:
     - cron: '23 7 * * 1' # Mondays, 07:23 UTC
@@ -8,6 +10,14 @@ on:
         description: 'Only report candidates; do not create issues'
         type: boolean
         default: false
+      notification_test:
+        description: 'Controlled TEST issue only; skips release discovery (dry_run must be false for delivery)'
+        type: choice
+        default: none
+        options:
+          - none
+          - failure
+          - recovery
 permissions: {}
 concurrency:
   group: watch-trusttunnel-releases
@@ -35,7 +45,21 @@ jobs:
           persist-credentials: false
       - name: Test release selection and issue idempotency
         run: python3 -B -m unittest discover -s scripts -p 'test_*trusttunnel*.py'
+      - name: Validate manual test selection
+        env:
+          NOTIFICATION_TEST: ${{ inputs.notification_test || 'none' }}
+        run: |
+          case "$NOTIFICATION_TEST" in
+            none|failure|recovery) ;;
+            *) echo '::error::Invalid notification test mode'; exit 1 ;;
+          esac
+      - name: '[TEST] Deliberately fail to exercise notification delivery'
+        if: github.event_name == 'workflow_dispatch' && inputs.notification_test == 'failure'
+        run: |
+          echo '::error::TEST ONLY: deliberate failure for notification delivery; no upstream discovery or server changes'
+          exit 1
       - name: Discover stable releases and file maintenance tasks
+        if: inputs.notification_test == 'none' || !inputs.notification_test
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DRY_RUN: ${{ inputs.dry_run || false }}
@@ -65,4 +89,12 @@ jobs:
           WATCH_RESULT: ${{ needs.watch.result == 'success' && 'success' || 'failure' }}
           WATCH_RUN_ID: ${{ needs.watch.outputs.observed_run_id }}
           WATCH_ATTEMPT: ${{ needs.watch.outputs.observed_attempt }}
-        run: python3 -B scripts/report_trusttunnel_health.py --result "$WATCH_RESULT" --create-issues
+          NOTIFICATION_TEST: ${{ inputs.notification_test || 'none' }}
+        run: |
+          args=()
+          case "$NOTIFICATION_TEST" in
+            none) ;;
+            failure|recovery) args+=(--notification-test) ;;
+            *) echo '::error::Invalid notification test mode'; exit 1 ;;
+          esac
+          python3 -B scripts/report_trusttunnel_health.py --result "$WATCH_RESULT" --create-issues "${args[@]}"
