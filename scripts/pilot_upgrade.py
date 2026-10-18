@@ -68,6 +68,7 @@ class Pilot:
         self.revision = 0
         self.password = "synthetic-pilot-control-password"
         self.database = DATA / "policy.sqlite"
+        self.baseline = ROOT / ".dev/pilot-baseline"
         self.agent_text = ""
         self.probes = []
         self.report = {"environment": "fresh GitHub-hosted Ubuntu 24.04 VM", "checks": []}
@@ -84,7 +85,7 @@ class Pilot:
 
     def configure(self):
         panel_uid = pwd.getpwnam("solartt-panel").pw_uid
-        baseline = ROOT / ".dev/pilot-baseline"
+        baseline = self.baseline
         self.agent_text = (baseline / "examples/agent.toml").read_text().replace(
             "allowed_uids = [1001]", f"allowed_uids = [{panel_uid}]")
         self.put("agent.toml", self.agent_text)

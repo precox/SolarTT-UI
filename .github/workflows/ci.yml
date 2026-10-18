@@ -38,8 +38,7 @@ jobs:
       - run: cargo fmt --all --check
       - run: node --check crates/panel/assets/app.js && node --check scripts/browser_smoke.mjs
       - run: node --test scripts/panel_state_tests.mjs
-      - run: python3 -B -m unittest discover -s scripts -p test_release_tools.py
-      - run: python3 -B -m unittest discover -s scripts -p 'test_*trusttunnel*.py'
+      - run: python3 -B -m unittest discover -s scripts -p 'test_*.py'
       - run: cargo clippy --locked -p solartt-control-api -p solartt-policy -p solartt-profile-export -p solartt-panel -p solartt-admin --all-targets -- -D warnings
       - run: cargo test --locked -p solartt-control-api -p solartt-policy -p solartt-profile-export -p solartt-panel -p solartt-admin
   native:
@@ -100,6 +99,10 @@ jobs:
           retention-days: 7
   pilot:
     needs: native
+    strategy:
+      fail-fast: false
+      matrix:
+        baseline: [alpha1, alpha5]
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
@@ -117,8 +120,12 @@ jobs:
           name: solartt-linux-x86_64-development
           path: dist/current
       - run: python3 scripts/prepare_pilot_baseline.py
+        if: matrix.baseline == 'alpha1'
+      - run: python3 scripts/prepare_alpha5_baseline.py
+        if: matrix.baseline == 'alpha5'
       - run: python3 scripts/prepare_client.py
       - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        if: matrix.baseline == 'alpha1'
         with:
           path: |
             ~/.cargo/registry
@@ -127,15 +134,24 @@ jobs:
           restore-keys: |
             native-ubuntu24-rust1.95-
       - name: Build the actual pinned alpha.1 binaries
+        if: matrix.baseline == 'alpha1'
         working-directory: .dev/pilot-baseline
         run: cargo build --locked --release -p solartt-agent -p solartt-panel -p solartt-admin
       - name: Package original alpha.1 with its dependency notices
+        if: matrix.baseline == 'alpha1'
         working-directory: .dev/pilot-baseline
         run: |
           cargo metadata --locked --format-version 1 | python3 scripts/licenses.py
           python3 scripts/package.py
       - name: Fresh VM upgrade, compatible rollback and schema-2 recovery
+        if: matrix.baseline == 'alpha1'
         run: python3 scripts/pilot_upgrade.py
+      - name: Published alpha.5 to candidate, guarded rollback and restore
+        if: matrix.baseline == 'alpha5'
+        run: python3 scripts/pilot_alpha5_upgrade.py
+      - name: Prepare passive manual acceptance kit without deployment
+        if: matrix.baseline == 'alpha5'
+        run: python3 scripts/prepare_acceptance_kit.py
       - name: Scan downloaded packages and pilot report
         run: python3 scripts/security_check.py artifacts
       - name: Pilot service diagnostics on failure
@@ -143,8 +159,14 @@ jobs:
         run: sudo journalctl -u solartt-agent.service -u solartt-panel.service --no-pager -n 100
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: solartt-isolated-upgrade-pilot
-          path: dist/
+          name: ${{ matrix.baseline == 'alpha1' && 'solartt-isolated-upgrade-pilot' || 'solartt-alpha5-upgrade-pilot' }}
+          path: ${{ matrix.baseline == 'alpha1' && 'dist/' || 'dist/alpha5-upgrade-report.json' }}
+          retention-days: 7
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: matrix.baseline == 'alpha5'
+        with:
+          name: solartt-manual-acceptance-kit
+          path: dist/manual-acceptance-kit/
           retention-days: 7
   legacy:
     runs-on: ubuntu-24.04
@@ -214,6 +236,10 @@ jobs:
         with:
           name: solartt-isolated-upgrade-pilot
           path: dist/pilot
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: solartt-alpha5-upgrade-pilot
+          path: dist/alpha5
       - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         with:
           name: solartt-minimal-runtime

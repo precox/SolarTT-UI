@@ -7,16 +7,25 @@ source/history/RustSec security scan; portable Rust and JavaScript tests; native
 transport/browser/package acceptance; upstream regressions; actual systemd VM
 upgrade/guarded recovery; and minimal Ubuntu runtime without build tools.
 
+The pilot gate requires both matrix legs on separate disposable VMs: historical
+alpha.1 migration and the published alpha.5 package → exact candidate. Neither
+leg replaces the H2 pre-fix/fixed proof or quota/revocation isolation regressions.
+
 Additional release guards require a unique alpha version/tag on `main`, exact
 source/build identity, the 297-package redistribution review and 548 notice
 hashes, SHA256SUMS for all published assets, private vulnerability reporting,
 and complete install/manual Android/private SSH instructions. Publication creates
 a draft, uploads verified assets, then marks it a **prerelease**. Attached
-`release-tests.json`, `build.json`, `minimal-runtime.json` and `pilot-report.json`
+`release-tests.json`, `build.json`, `minimal-runtime.json`, `pilot-report.json`
+and `alpha5-upgrade-report.json`
 record the actual results. The container report is not systemd VM evidence.
 
 These gates authorize the experimental alpha; they do not close the field
 acceptance items below. Alpha.1/alpha.2 were internal development baselines.
+
+Agent/panel behavior changes also require scoped owner acceptance using the
+[prepared kit and record](manual-acceptance.md). CI kit creation leaves human
+acceptance unperformed; it does not provision a persistent test environment.
 
 ## Stable: existing engineering evidence and remaining work
 

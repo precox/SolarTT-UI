@@ -183,6 +183,11 @@ adding another step to it cannot detect its own missing start. GitHub's 60-day
 inactivity shutdown applies to public repositories. Neither an external watchdog
 nor a human acceptance test environment is installed by this change.
 
+The read-only [external checker and activation procedure](external-upstream-monitor.md)
+are now prepared. It uses a successful normal-check receipt step, not green
+dry-run/test workflows. External scheduling, independent alert delivery and its
+own missed-run control still require a chosen executor and verification.
+
 Local read-only checks (no build or server access):
 
 ```sh
@@ -227,8 +232,12 @@ They run in portable CI and before each discovery job.
    branch is pushed. The template records current/proposed identities, managed
    patch decisions, API/schema/config/client compatibility, the six CI gates,
    human acceptance and recovery limitations. Do not check unverified boxes.
-   Record exact supported upgrade versions; the historical alpha.1 pilot alone
-   does not verify an upgrade from alpha.5. Merge after review and create a
+   The pilot gate runs both historical alpha.1 migration and published alpha.5
+   → candidate upgrade/recovery on separate disposable VMs. Record both exact
+   reports; the historical alpha.1 pilot alone does not verify alpha.5. For agent
+   or panel behavior changes, use the [prepared manual acceptance kit and procedure](manual-acceptance.md)
+   and record the owner's decision. Kit creation is not human acceptance.
+   Merge after review and create a
    **new SolarTT release** using [the releasing process](releasing.md). An upstream release
    alone does not establish compatibility or authorize publication.
 6. Installation on Riga is a separate operational task in an agreed window:

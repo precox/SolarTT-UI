@@ -38,6 +38,7 @@ items unchecked and explain missing coverage.
 - [ ] Quota admission/exhaustion and revoke A while B's TCP/UDP streams survive pass.
 - [ ] Fresh installation, supported upgrade paths and restore checks pass on disposable runners.
 - [ ] Supported previous SolarTT versions tested are listed explicitly; historical alpha.1 migration alone is not evidence for an upgrade from alpha.5.
+- [ ] Both pilot matrix reports pass; alpha.5 baseline/candidate source and package hashes match this PR's candidate.
 - [ ] Required dependency notices and redistribution review are current.
 
 ## Human acceptance
@@ -48,6 +49,7 @@ profiles; keep credentials and private logs out of this PR.
 
 - [ ] User-visible behavior and known limitations reviewed.
 - [ ] Applicable panel/profile/client checks completed, or explicitly deferred with a reason.
+- [ ] For agent/panel behavior changes, the exact candidate's manual acceptance kit and completed owner record are linked; kit preparation alone is not marked as acceptance.
 
 ## Release, rollout and recovery
 

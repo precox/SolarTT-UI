@@ -59,6 +59,7 @@ jobs:
           echo '::error::TEST ONLY: deliberate failure for notification delivery; no upstream discovery or server changes'
           exit 1
       - name: Discover stable releases and file maintenance tasks
+        id: discovery
         if: inputs.notification_test == 'none' || !inputs.notification_test
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -67,6 +68,11 @@ jobs:
           args=()
           if [[ "$DRY_RUN" != true ]]; then args+=(--create-issues); fi
           python3 -B scripts/watch_trusttunnel.py "${args[@]}"
+      - name: Record successful normal TrustTunnel check
+        if: >-
+          steps.discovery.outcome == 'success' && inputs.dry_run != true &&
+          (inputs.notification_test == 'none' || !inputs.notification_test)
+        run: echo 'Normal upstream discovery completed successfully; external freshness check uses this step completion time.'
   report-health:
     needs: watch
     if: >-
