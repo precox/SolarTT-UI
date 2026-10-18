@@ -3,12 +3,32 @@ import hashlib
 import json
 import tempfile
 import unittest
+import subprocess
 from pathlib import Path
 
 from prepare_alpha5_baseline import verify
+from prepare_acceptance_kit import copy_public_inputs
 
 
 class BaselineTests(unittest.TestCase):
+    def test_kit_copies_tracked_public_inputs_without_untracked_private_files(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "repo"
+            root.mkdir()
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            (root / "docs").mkdir()
+            (root / "examples").mkdir()
+            (root / "docs/public.md").write_text("public fixture")
+            (root / "examples/public.toml").write_text("public fixture")
+            subprocess.run(["git", "add", "docs/public.md", "examples/public.toml"], cwd=root, check=True)
+            (root / "docs/untracked-private.md").write_text("private fixture")
+            (root / "examples/untracked-private.toml").write_text("private fixture")
+            destination = Path(folder) / "kit"
+            copy_public_inputs(root, destination)
+            self.assertEqual(sorted(p.relative_to(destination).as_posix()
+                                    for p in destination.rglob("*") if p.is_file()),
+                             ["docs/public.md", "examples/public.toml"])
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)

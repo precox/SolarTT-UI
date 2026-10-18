@@ -33,6 +33,10 @@ Contents are allowlisted public inputs only:
   alpha.5 in development, so compare **source commits and package SHA256**, too.
 - `alpha5-upgrade-report.json`, this procedure, a blank acceptance record,
   backup/upgrade instructions and example configurations.
+- Tracked public Markdown documentation under `docs/` and examples under
+  `examples/`; root `README.md` identifies the current entry point. Historical
+  verification records remain historical and do not establish this candidate's
+  acceptance. Untracked files in those directories are not copied.
 - Root `SHA256SUMS` covers all included files with relative paths.
 
 After extracting into a new directory, run `sha256sum --check SHA256SUMS`. Match

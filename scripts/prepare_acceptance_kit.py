@@ -13,6 +13,22 @@ from publish_alpha import checked_manifest
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def copy_public_inputs(root, destination):
+    names = subprocess.check_output(["git", "ls-files", "-z", "--", "docs", "examples"], cwd=root)
+    for raw in names.split(b"\0"):
+        if not raw:
+            continue
+        relative = Path(raw.decode())
+        if relative.parts[0] == "docs" and relative.suffix != ".md":
+            continue
+        source = root / relative
+        if source.is_symlink() or not source.resolve().is_relative_to(root.resolve()):
+            raise ValueError("Unsafe public acceptance input")
+        target = destination / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, target)
+
+
 def main():
     pin = json.loads((ROOT / "upstream/upgrade-alpha5-pin.json").read_text())
     baseline = ROOT / ".dev/alpha5-baseline"
@@ -38,10 +54,15 @@ def main():
         output.mkdir()
         shutil.copyfile(package, output / package.name)
         shutil.copyfile(folder / "build.json", output / "build.json")
-    for name in ("manual-acceptance.md", "manual-acceptance-record.md", "backup-upgrade.md"):
-        shutil.copyfile(ROOT / "docs" / name, destination / name)
+    copy_public_inputs(ROOT, destination)
     shutil.copyfile(ROOT / "dist/alpha5-upgrade-report.json", destination / "alpha5-upgrade-report.json")
-    shutil.copytree(ROOT / "examples", destination / "examples")
+    (destination / "README.md").write_text(
+        "# Prepared manual acceptance inputs\n\n"
+        "No host is provisioned or deployed; human acceptance is NOT_PERFORMED.\n"
+        "Verify root SHA256SUMS, then read docs/manual-acceptance.md and fill\n"
+        "docs/manual-acceptance-record.md. Packages are in baseline/ and candidate/.\n"
+        "Only tracked public documentation/examples are included. Historical reports\n"
+        "in docs do not establish acceptance of this candidate.\n")
     (destination / "identity.json").write_text(json.dumps({
         "baseline": pin, "candidate": metadata,
         "workflow_url": f"https://github.com/precox/SolarTT-UI/actions/runs/{os.environ['GITHUB_RUN_ID']}",
