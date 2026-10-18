@@ -32,6 +32,8 @@ class API:
         self.calls.append(path)
         if "/attempts/" in path:
             number, attempt = path.split("/runs/")[1].split("/attempts/")
+            if "/jobs?" not in path:
+                return run(int(number), run_attempt=int(attempt))
             values = self.jobs.get((int(number), int(attempt.split("/")[0])), [])
             key = "jobs"
         elif "/runs?" in path:
@@ -64,9 +66,18 @@ class FreshnessTests(unittest.TestCase):
         self.assertTrue(result["run_url"].endswith("/1/attempts/3"))
 
     def test_partial_retry_does_not_refresh_old_watch_observation(self):
-        api = API([run(run_attempt=2)], {(1, 1): [job()], (1, 2): [job(timedelta(days=11))]})
+        api = API([run(run_attempt=2)], {(1, 1): [job(timedelta(days=11))], (1, 2): [job(timedelta(days=11))]})
         self.assertEqual(check(api, NOW)["status"], "CRITICAL")
         self.assertTrue(any("/attempts/2/jobs" in path for path in api.calls))
+
+    def test_later_failed_or_running_rerun_does_not_erase_prior_success(self):
+        for status, conclusion in [("completed", "failure"), ("in_progress", None)]:
+            with self.subTest(status=status):
+                api = API([run(run_attempt=2, status=status, conclusion=conclusion)],
+                          {(1, 1): [job(timedelta(days=1))]})
+                result = check(api, NOW)
+                self.assertEqual(result["status"], "OK")
+                self.assertTrue(result["run_url"].endswith("/1/attempts/1"))
 
     def test_no_runs_disabled_or_only_unsuccessful_runs_alert(self):
         for api in [API(), API(state="disabled_inactivity"), API([run(conclusion="failure")]),

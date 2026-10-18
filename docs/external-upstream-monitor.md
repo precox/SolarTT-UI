@@ -54,6 +54,8 @@ rerun of an older run can provide a fresh observation; a reporter-only retry
 cannot turn the old watch completion time into a fresh one. Exactly 10 days is
 still healthy; **more** than 10 days alerts. Successful workflow completion is
 required, so a failed reporter is not counted as a fully healthy normal run.
+Earlier successful attempts remain eligible even if a later retry fails or is
+still running; a retry does not erase the prior observation or refresh its time.
 The OK result identifies a qualifying witness, not necessarily the newest run.
 
 Before activation, old runs without this receipt step are not accepted. Run a new
