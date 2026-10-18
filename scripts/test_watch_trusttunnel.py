@@ -167,7 +167,8 @@ class IdempotencyTests(unittest.TestCase):
         self.assertEqual(len(api.writes), 1)
         body = api.writes[0]["body"]
         for expected in [PIN["commit"], PIN["archive_sha256"], "c" * 40,
-                         "upstream/trusttunnel-v1.2.0", "0001-managed-policy.patch", "Riga"]:
+                         "upstream/trusttunnel-v1.2.0", "0001-managed-policy.patch", "Riga",
+                         "template=upstream-update.md"]:
             self.assertIn(expected, body)
 
     def test_title_fallback_and_exact_marker_with_pr_exclusion(self):
@@ -232,16 +233,16 @@ class HTTPTests(unittest.TestCase):
     def http_error(self, code, headers=None):
         return urllib.error.HTTPError("https://api.github.com/test", code, "fixture", headers or {}, None)
 
-    @patch("watch_trusttunnel.time.sleep")
-    @patch("watch_trusttunnel.urllib.request.urlopen")
+    @patch("github_api.time.sleep")
+    @patch("github_api.urllib.request.urlopen")
     def test_transient_get_failures_retry_then_succeed(self, urlopen, sleep):
         urlopen.side_effect = [self.http_error(502), urllib.error.URLError("fixture"), self.response([])]
         self.assertEqual(GitHub().request("GET", "/test"), [])
         self.assertEqual(urlopen.call_count, 3)
         self.assertEqual(sleep.call_count, 2)
 
-    @patch("watch_trusttunnel.time.sleep")
-    @patch("watch_trusttunnel.urllib.request.urlopen")
+    @patch("github_api.time.sleep")
+    @patch("github_api.urllib.request.urlopen")
     def test_rate_limits_fail_without_early_retry_and_server_retries_are_bounded(self, urlopen, sleep):
         for code, headers, attempts in [(429, {}, 1), (503, {}, 3), (401, {}, 1),
                                          (404, {}, 1), (403, {}, 1),
@@ -254,7 +255,7 @@ class HTTPTests(unittest.TestCase):
                 GitHub().request("GET", "/test")
             self.assertEqual(urlopen.call_count, attempts)
 
-    @patch("watch_trusttunnel.urllib.request.urlopen")
+    @patch("github_api.urllib.request.urlopen")
     def test_post_is_never_retried(self, urlopen):
         for error in [self.http_error(503), TimeoutError(), urllib.error.URLError("fixture"),
                       http.client.IncompleteRead(b"partial")]:
@@ -264,14 +265,14 @@ class HTTPTests(unittest.TestCase):
                 GitHub().request("POST", "/test", {"body": "fixture"})
             self.assertEqual(urlopen.call_count, 1)
 
-    @patch("watch_trusttunnel.time.sleep")
-    @patch("watch_trusttunnel.urllib.request.urlopen")
+    @patch("github_api.time.sleep")
+    @patch("github_api.urllib.request.urlopen")
     def test_interrupted_read_retries_get(self, urlopen, sleep):
         urlopen.side_effect = [http.client.IncompleteRead(b"partial"), self.response([])]
         self.assertEqual(GitHub().request("GET", "/test"), [])
         self.assertEqual(urlopen.call_count, 2)
 
-    @patch("watch_trusttunnel.urllib.request.urlopen")
+    @patch("github_api.urllib.request.urlopen")
     def test_malformed_json_and_non_array_page_fail(self, urlopen):
         urlopen.return_value = io.BytesIO(b"not json")
         with self.assertRaisesRegex(WatchError, "invalid JSON"):
@@ -281,7 +282,7 @@ class HTTPTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(WatchError):
                 list(GitHub().pages("/test"))
 
-    @patch("watch_trusttunnel.urllib.request.urlopen")
+    @patch("github_api.urllib.request.urlopen")
     def test_annotated_tag_commit_resolution_uses_commit_api(self, urlopen):
         urlopen.return_value = self.response({"sha": PIN["commit"]})
         self.assertEqual(GitHub().commit("v1.1.0"), PIN["commit"])
