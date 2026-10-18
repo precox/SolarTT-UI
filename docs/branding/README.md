@@ -42,4 +42,4 @@ Recompression changes the file-level C2PA binding, so the original manifest is
 retained with the original file and not copied into the derivative export as an
 invalid claim. No generated content is hidden: the prompts and original sources
 are preserved here. The repository README consumes the smaller delivery export;
-this documentation/artwork update does not replace alpha.4's tagged packages.
+documentation/artwork updates do not replace previously tagged release packages.

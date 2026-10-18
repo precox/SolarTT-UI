@@ -1,0 +1,17 @@
+{
+  "synthetic": true,
+  "source": "crates/panel/assets",
+  "viewport": {
+    "width": 390,
+    "height": 1060,
+    "scale": 2
+  },
+  "screens": [
+    "mobile-users.png",
+    "mobile-access.png"
+  ],
+  "production_access": false,
+  "render_source_commit": "0dcbf877ee7251d0a47b8fa128d3f680ae0d6d97",
+  "workflow_url": "https://github.com/precox/SolarTT-UI/actions/runs/39172665038",
+  "artifact_zip_sha256": "885911ab75e22070c6181f71c5ab1f868c1dac932464939634cad76647a7562c"
+}

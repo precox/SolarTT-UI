@@ -1,8 +1,15 @@
 <p align="center">
-  <img src="docs/branding/solartt-avatar.png" width="160" height="160" alt="SolarTT-UI sun and tunnel logo">
+  <img src="docs/branding/solartt-avatar.png" width="112" height="112" alt="SolarTT-UI sun and tunnel logo">
 </p>
 
 # SolarTT-UI
+
+<p align="center">
+  <a href="https://github.com/precox/SolarTT-UI/releases/tag/v0.1.0-alpha.5"><img src="https://img.shields.io/badge/release-v0.1.0--alpha.5-ffbc72" alt="Release v0.1.0-alpha.5"></a>
+  <a href="https://github.com/precox/SolarTT-UI/actions/workflows/ci.yml"><img src="https://github.com/precox/SolarTT-UI/actions/workflows/ci.yml/badge.svg?branch=main" alt="Build, test and security CI"></a>
+  <a href="https://github.com/precox/SolarTT-UI/actions/workflows/watch-trusttunnel.yml"><img src="https://github.com/precox/SolarTT-UI/actions/workflows/watch-trusttunnel.yml/badge.svg?branch=main" alt="TrustTunnel release watcher"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="Apache-2.0 license"></a>
+</p>
 
 SolarTT-UI is an open-source web panel and managed endpoint for TrustTunnel.
 Create users, issue individual device profiles, set traffic quotas and expiry,
@@ -16,6 +23,14 @@ instructions, see [CONTRIBUTING.md](CONTRIBUTING.md).
 This alpha is intended for an operator-supervised single-node pilot. There is
 no stable release or guaranteed concurrent-user capacity yet.
 
+<p align="center">
+  <img src="docs/screenshots/mobile-users.png" width="280" alt="Mobile panel demo: synthetic users, shared traffic quota and individual device profiles">
+  <img src="docs/screenshots/mobile-access.png" width="280" alt="Mobile access settings demo: device profile limit, traffic quota and monthly reset">
+</p>
+<p align="center"><strong>Users &amp; devices · Access settings</strong><br>
+Actual panel UI at a mobile viewport, using synthetic demo data only.<br>
+No production users, credentials or traffic are shown.</p>
+
 ## Contents
 
 - [Download](#download)
@@ -27,6 +42,7 @@ no stable release or guaranteed concurrent-user capacity yet.
 - [Settings and deployment](#settings-and-deployment)
 - [Backups and updates](#backups-and-updates)
 - [Building from source](#building-from-source)
+- [Automation](#automation)
 - [Security](#security)
 - [License](#license)
 
@@ -181,7 +197,13 @@ See [CONTRIBUTING.md](CONTRIBUTING.md#development-setup) for the toolchain,
 source preparation and test commands. Build on a development machine or in CI;
 install the resulting package on the VPN node.
 
-The [CI workflow](.github/workflows/ci.yml) separates these checks:
+## Automation
+
+### Build, test and release CI
+
+The [CI workflow](https://github.com/precox/SolarTT-UI/actions/workflows/ci.yml)
+checks pushes to `main` and `dev/**`, pull requests and alpha tags. It can also
+be started manually. It separates these checks:
 
 | Job | Checks |
 | --- | --- |
@@ -197,6 +219,22 @@ checks are separate from real-client and sustained-load acceptance. Recorded
 Android/network coverage, operational certificate renewal, off-host recovery and
 representative 24–72 hour observation remain work for stable. See
 [release gates](docs/release-gates.md) and [verification history](docs/verification.md).
+
+### TrustTunnel release watcher
+
+The [upstream watcher](https://github.com/precox/SolarTT-UI/actions/workflows/watch-trusttunnel.yml)
+runs every **Monday at 07:23 UTC**, with a manual run and a dry-run mode. It
+compares stable TrustTunnel releases with our pinned dependency, skips
+prereleases, and creates a deduplicated maintenance issue for each newer stable
+version. A separate job reports discovery failures and recovery through GitHub
+Issues. GitHub may delay scheduled runs; a workflow badge is not an independent
+uptime monitor or proof of email delivery.
+
+The watcher does not change the upstream pin, merge code, publish SolarTT or
+connect to VPN servers. Each actual update gets a separate branch, managed-patch
+review and full CI before a release; installation remains an operator action.
+See [upstream maintenance](docs/upstream-maintenance.md) for notification tests,
+permissions, failure handling and the complete update procedure.
 
 ## Security
 
