@@ -7,7 +7,16 @@ import urllib.error
 from unittest.mock import patch
 
 from github_api import DOWNSTREAM, GitHubAPI, GitHubError
-from report_trusttunnel_health import MARKER, TITLE, report
+from report_trusttunnel_health import BOT_USER_ID, MARKER, TITLE, report
+
+
+BOT = {"id": BOT_USER_ID, "login": "github-actions[bot]", "type": "Bot"}
+
+
+def fresh_report(api, result, run_id, attempt, create=False):
+    """Lifecycle fixtures model a watcher that actually ran in this attempt."""
+    return report(api, result, run_id, attempt, create=create,
+                  watch_run_id=run_id, watch_attempt=attempt)
 
 
 class FakeAPI(GitHubAPI):
@@ -26,7 +35,7 @@ class FakeAPI(GitHubAPI):
             return copy.deepcopy(self.issues[(page - 1) * 100:page * 100])
         self.writes.append((method, path, copy.deepcopy(payload)))
         if method == "POST":
-            issue = {**payload, "number": len(self.issues) + 1, "state": "open"}
+            issue = {**payload, "number": len(self.issues) + 1, "state": "open", "user": copy.deepcopy(BOT)}
             self.issues.append(issue)
         else:
             issue = next(i for i in self.issues if str(i.get("number")) == path.rsplit("/", 1)[1])
@@ -35,38 +44,121 @@ class FakeAPI(GitHubAPI):
 
 
 def health_issue(state="open", **changes):
-    return {"number": 7, "title": TITLE, "body": MARKER, "state": state, **changes}
+    return {"number": 7, "title": TITLE, "body": MARKER, "state": state, "user": copy.deepcopy(BOT), **changes}
 
 
 class HealthTests(unittest.TestCase):
+    def test_reporter_only_retry_cannot_close_newer_incident(self):
+        api = FakeAPI()
+        fresh_report(api, "failure", "101", "1", create=True)
+        before = copy.deepcopy(api.issues)
+        api.calls.clear()
+        with self.assertRaisesRegex(GitHubError, "Re-run all jobs"):
+            report(api, "success", "100", "2", create=True, watch_run_id="100", watch_attempt="1")
+        self.assertEqual(api.calls, [])
+        self.assertEqual(api.issues, before)
+        self.assertEqual(api.issues[0]["state"], "open")
+
+    def test_reporter_only_retry_cannot_create_false_incident_after_recovery(self):
+        api = FakeAPI()
+        fresh_report(api, "success", "101", "1", create=True)
+        api.calls.clear()
+        with self.assertRaisesRegex(GitHubError, "Re-run all jobs"):
+            report(api, "failure", "100", "2", create=True, watch_run_id="100", watch_attempt="1")
+        self.assertEqual(api.calls, [])
+        self.assertEqual(api.issues, [])
+
+    def test_full_rerun_of_older_run_can_recover_with_a_fresh_watch_job(self):
+        api = FakeAPI()
+        fresh_report(api, "failure", "101", "1", create=True)
+        result = report(api, "success", "100", "2", create=True,
+                        watch_run_id="100", watch_attempt="2")
+        self.assertEqual(result["action"], "close")
+        self.assertEqual(api.issues[0]["state"], "closed")
+
+    def test_missing_or_mismatched_provenance_never_accesses_api(self):
+        for observed_run, observed_attempt in [(None, None), ("100", None),
+                                                (None, "1"), ("99", "1"), ("100", "2")]:
+            for result in ["success", "failure"]:
+                api = FakeAPI()
+                with self.subTest(result=result, run=observed_run, attempt=observed_attempt):
+                    with self.assertRaisesRegex(GitHubError, "Re-run all jobs"):
+                        report(api, result, "100", "1", create=True,
+                               watch_run_id=observed_run, watch_attempt=observed_attempt)
+                    self.assertEqual(api.calls, [])
+
+    def test_external_issue_with_copied_marker_is_not_mutated(self):
+        issue = health_issue(number=42, title="External bug report", body="```\n" + MARKER + "\n```",
+                             user={"id": 123, "login": "external-reporter", "type": "User"})
+        api = FakeAPI([issue])
+        self.assertEqual(fresh_report(api, "success", "100", "1", create=True)["action"], "none")
+        self.assertEqual(api.issues, [issue])
+        self.assertEqual(api.writes, [])
+
+    def test_untrusted_copies_do_not_block_owned_issue_or_lose_user_content(self):
+        for user in [{"id": 123, "login": "external-reporter", "type": "User"},
+                     {"id": 321, "login": "other[bot]", "type": "Bot"}, None, {},
+                     {"id": str(BOT_USER_ID), "type": "Bot"},
+                     {"id": BOT_USER_ID, "type": "User"}]:
+            for result in ["success", "failure"]:
+                external = health_issue(number=42, user=user, body="```\n" + MARKER + "\n```")
+                api = FakeAPI([external, health_issue()])
+                with self.subTest(user=user, result=result):
+                    plan = fresh_report(api, result, "100", "1", create=True)
+                    self.assertEqual(plan["issue"], 7)
+                    self.assertEqual(api.issues[0], external)
+                    self.assertEqual(api.writes[0][1], f"/repos/{DOWNSTREAM}/issues/7")
+
+    def test_failure_with_only_an_external_copy_creates_an_owned_issue(self):
+        external = health_issue(number=42, user={"id": 123, "type": "User"})
+        api = FakeAPI([external])
+        plan = fresh_report(api, "failure", "100", "1", create=True)
+        self.assertEqual(plan["action"], "create")
+        self.assertEqual(api.issues[0], external)
+        self.assertEqual(api.issues[1]["user"], BOT)
+
+    def test_wrong_author_in_write_response_is_rejected_without_retry(self):
+        api = FakeAPI()
+        original = api.request
+
+        def request(method, path, payload=None):
+            response = original(method, path, payload)
+            if method != "GET":
+                response["user"] = {"id": 123, "type": "User"}
+            return response
+
+        with patch.object(api, "request", side_effect=request), self.assertRaises(GitHubError):
+            fresh_report(api, "failure", "100", "1", create=True)
+        self.assertEqual(len(api.writes), 1)
+
     def test_healthy_without_incident_never_creates_issue(self):
         api = FakeAPI()
-        self.assertEqual(report(api, "success", "100", "1", create=True)["action"], "none")
+        self.assertEqual(fresh_report(api, "success", "100", "1", create=True)["action"], "none")
         self.assertEqual(api.writes, [])
 
     def test_failure_creates_one_issue_with_safe_attempt_link(self):
         api = FakeAPI()
-        first = report(api, "failure", "100", "2", create=True)
+        first = fresh_report(api, "failure", "100", "2", create=True)
         self.assertEqual(first["action"], "create")
         self.assertEqual(len(api.issues), 1)
         self.assertIn(f"https://github.com/{DOWNSTREAM}/actions/runs/100/attempts/2", api.issues[0]["body"])
         self.assertIn(MARKER, api.issues[0]["body"].splitlines())
-        self.assertEqual(report(api, "failure", "100", "2", create=True)["action"], "none")
+        self.assertEqual(fresh_report(api, "failure", "100", "2", create=True)["action"], "none")
         self.assertEqual(len(api.writes), 1)
 
     def test_failure_updates_open_issue_then_success_closes_and_failure_reopens(self):
         api = FakeAPI()
-        report(api, "failure", "100", "1", create=True)
+        fresh_report(api, "failure", "100", "1", create=True)
         number = api.issues[0]["number"]
-        self.assertEqual(report(api, "failure", "101", "1", create=True)["action"], "update")
+        self.assertEqual(fresh_report(api, "failure", "101", "1", create=True)["action"], "update")
         failure = api.issues[0]["body"]
         self.assertIn("/runs/101/attempts/1", failure)
-        self.assertEqual(report(api, "success", "102", "1", create=True)["action"], "close")
+        self.assertEqual(fresh_report(api, "success", "102", "1", create=True)["action"], "close")
         self.assertEqual(api.issues[0]["state"], "closed")
         self.assertTrue(api.issues[0]["body"].startswith(failure))
         self.assertIn("/runs/102/attempts/1", api.issues[0]["body"])
-        self.assertEqual(report(api, "success", "103", "1", create=True)["action"], "none")
-        self.assertEqual(report(api, "failure", "104", "1", create=True)["action"], "reopen")
+        self.assertEqual(fresh_report(api, "success", "103", "1", create=True)["action"], "none")
+        self.assertEqual(fresh_report(api, "failure", "104", "1", create=True)["action"], "reopen")
         self.assertEqual(api.issues[0]["state"], "open")
         self.assertEqual(api.issues[0]["number"], number)
         self.assertEqual(len(api.issues), 1)
@@ -76,7 +168,7 @@ class HealthTests(unittest.TestCase):
         for changes in [{"title": "Investigating"}, {"body": None}]:
             api = FakeAPI([health_issue(**changes)])
             with self.subTest(changes=changes):
-                self.assertEqual(report(api, "failure", "100", "1", create=True)["issue"], 7)
+                self.assertEqual(fresh_report(api, "failure", "100", "1", create=True)["issue"], 7)
                 self.assertEqual(len(api.issues), 1)
                 self.assertEqual(api.writes[0][0], "PATCH")
                 self.assertIn(MARKER, api.issues[0]["body"].splitlines())
@@ -85,13 +177,13 @@ class HealthTests(unittest.TestCase):
         api = FakeAPI([health_issue(pull_request={}),
                        {"number": 8, "state": "open", "title": "upstream: review TrustTunnel v1.2.0",
                         "body": "<!-- solartt-upstream-watch:TrustTunnel/TrustTunnel:v1.2.0 -->"}])
-        self.assertEqual(report(api, "failure", "100", "1", create=True)["action"], "create")
+        self.assertEqual(fresh_report(api, "failure", "100", "1", create=True)["action"], "create")
         self.assertEqual(len(api.issues), 3)
         self.assertEqual(api.issues[0]["body"], MARKER)
 
     def test_closed_health_issue_on_later_page_is_reused(self):
         api = FakeAPI([{"title": "unrelated", "body": None}] * 100 + [health_issue("closed")])
-        self.assertEqual(report(api, "failure", "100", "1", create=True)["action"], "reopen")
+        self.assertEqual(fresh_report(api, "failure", "100", "1", create=True)["action"], "reopen")
         self.assertEqual(api.writes[0][1], f"/repos/{DOWNSTREAM}/issues/7")
         self.assertIn(("GET", f"/repos/{DOWNSTREAM}/issues?state=all&per_page=100&page=2"), api.calls)
 
@@ -102,7 +194,7 @@ class HealthTests(unittest.TestCase):
             api = FakeAPI(issues)
             before = copy.deepcopy(api.issues)
             with self.subTest(result=result, action=action):
-                plan = report(api, result, "100", "1")
+                plan = fresh_report(api, result, "100", "1")
                 self.assertEqual(plan["action"], action)
                 self.assertEqual(plan["mode"], "dry-run")
                 self.assertEqual(api.writes, [])
@@ -114,7 +206,7 @@ class HealthTests(unittest.TestCase):
                                       ("failure", "100", "0"), ("failure", "100", None)]:
             api = FakeAPI()
             with self.subTest(result=result, run=run, attempt=attempt), self.assertRaises(GitHubError):
-                report(api, result, run, attempt, create=True)
+                fresh_report(api, result, run, attempt, create=True)
             self.assertEqual(api.calls, [])
 
     def test_duplicate_or_malformed_health_issues_fail_before_mutation(self):
@@ -123,14 +215,14 @@ class HealthTests(unittest.TestCase):
                        [health_issue(body=[])], [health_issue(title=None)]]:
             api = FakeAPI(issues)
             with self.subTest(issues=issues), self.assertRaises(GitHubError):
-                report(api, "failure", "100", "1", create=True)
+                fresh_report(api, "failure", "100", "1", create=True)
             self.assertEqual(api.writes, [])
 
     def test_failed_deduplication_page_prevents_issue_creation(self):
         api = FakeAPI([{"title": "unrelated", "body": None}] * 100)
         api.fail = "page=2"
         with self.assertRaises(GitHubError):
-            report(api, "failure", "100", "1", create=True)
+            fresh_report(api, "failure", "100", "1", create=True)
         self.assertEqual(api.writes, [])
 
     def test_ambiguous_post_or_patch_failure_is_reconciled_next_run(self):
@@ -148,9 +240,9 @@ class HealthTests(unittest.TestCase):
 
             with self.subTest(result=result, issues=issues):
                 with patch.object(api, "request", side_effect=request), self.assertRaises(GitHubError):
-                    report(api, result, "100", "1", create=True)
+                    fresh_report(api, result, "100", "1", create=True)
                 writes = len(api.writes)
-                self.assertEqual(report(api, result, "100", "1", create=True)["action"], expected)
+                self.assertEqual(fresh_report(api, result, "100", "1", create=True)["action"], expected)
                 self.assertEqual(len(api.writes), writes)
                 self.assertEqual(len(api.issues), 1)
 
@@ -163,9 +255,9 @@ class HealthTests(unittest.TestCase):
             return {} if method != "GET" else response
 
         with patch.object(api, "request", side_effect=request), self.assertRaises(GitHubError):
-            report(api, "failure", "100", "1", create=True)
+            fresh_report(api, "failure", "100", "1", create=True)
         self.assertEqual(len(api.writes), 1)
-        self.assertEqual(report(api, "failure", "100", "1", create=True)["action"], "none")
+        self.assertEqual(fresh_report(api, "failure", "100", "1", create=True)["action"], "none")
 
     @patch("github_api.urllib.request.urlopen")
     def test_patch_requests_are_json_and_never_retried(self, urlopen):

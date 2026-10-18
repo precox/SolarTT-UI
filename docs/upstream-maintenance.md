@@ -83,12 +83,33 @@ the watcher job's result, including failed tests and interrupted/timed-out check
   the last failure text. Success without an existing incident creates no issue.
 - Later failure: reopen the same closed issue instead of creating a duplicate.
 
-The hidden `<!-- solartt-upstream-watch:health -->` marker and a title fallback
-identify the service issue across all pages of open and closed issues. PRs and
-release tasks are excluded. Preserve the marker; keep investigation notes in
-comments because automation replaces the issue body on failure. Multiple matching
-health issues cause an error requiring manual consolidation. Mutating API calls
-are never blindly retried; the next run reconciles lost write responses.
+The reporter first limits managed issues to the GitHub.com `github-actions[bot]`
+account (numeric user ID `41898282`, type `Bot`, as returned by the API). The
+hidden `<!-- solartt-upstream-watch:health -->` marker and a title fallback then
+identify the service issue across all pages of those open and closed issues.
+Human-created issues, other bots, unknown authors and PRs are ignored even if
+they copy the title or marker, including inside a code block. Such copies cannot
+be overwritten/closed or block a real incident as duplicate matches. Preserve
+the marker; keep investigation notes in comments because automation replaces the
+issue body on failure. Multiple matching
+bot-owned health issues cause an error requiring manual consolidation. Mutating
+API calls are never blindly retried; a fresh normal run reconciles lost write
+responses. The write response must also identify the expected bot-owned issue.
+
+The watcher records its actual `GITHUB_RUN_ID` and `GITHUB_RUN_ATTEMPT` in a first
+step before checkout/tests and passes those values as job outputs. Before reading
+or changing issues, the reporter requires both to match its current run and
+attempt. Missing or stale outputs fail the reporting job without API access.
+This prevents an old reporter-only retry from closing a newer incident or
+creating a false incident from a stale failure. A full rerun of an older run is
+allowed when the watcher actually executes again in the new attempt; run ID
+ordering alone does not establish freshness.
+
+After a reporting error, use **Re-run all jobs** or start a new normal manual run.
+**Re-run failed jobs** may rerun only the reporter when the watcher previously
+succeeded, leaving stale outputs; that retry is deliberately rejected. Re-runs
+use their original source revision, so after merging a reporter fix, start a new
+run from the updated default branch instead of rerunning a pre-fix workflow.
 
 The reporter runs on another GitHub-hosted runner with only `contents: read`
 and `issues: write`. It does not import the discovery script or copy error output,
@@ -98,6 +119,9 @@ concurrency group. Dry runs and skipped watcher jobs do not change health issues
 a dry-run success cannot close an incident. A cancelled watcher job is reported
 as incomplete if GitHub can still run the reporter. Cancelling the whole workflow
 can prevent the reporting job from running, so cancellation alerts are best effort.
+Health issue writes are supported only in the repository's Actions workflow with
+its built-in `GITHUB_TOKEN`; local CLI use is read-only. A personal token creates
+issues under a different author and is not a substitute for that workflow token.
 
 To receive issue notifications, subscribe to **Watch → Custom → Issues** on the
 repository and select GitHub/email delivery in your personal notification
@@ -125,7 +149,8 @@ The second command reads the public API without authentication by default; an
 optional `GH_TOKEN` increases the API allowance. It never writes unless explicitly
 given `--create-issues`. Unit tests use synthetic API responses, including
 pagination, numeric ordering, prerelease filtering, closed tasks, API failures and
-the service issue create/update/close/reopen lifecycle without live GitHub writes.
+the service issue create/update/close/reopen lifecycle, stale reporter-only retries,
+fresh full reruns and untrusted issue copies without live GitHub writes.
 They run in portable CI and before each discovery job.
 
 ## Updating a selected release
