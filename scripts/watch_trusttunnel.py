@@ -2,25 +2,18 @@
 """Detect stable TrustTunnel releases; optionally file tasks, never update code."""
 import argparse
 from dataclasses import dataclass
-import http.client
 import json
 import os
 from pathlib import Path
 import re
-import time
-import urllib.error
 import urllib.parse
-import urllib.request
+
+from github_api import DOWNSTREAM, GitHubAPI, GitHubError as WatchError
 
 ROOT = Path(__file__).resolve().parents[1]
 UPSTREAM = "TrustTunnel/TrustTunnel"
-DOWNSTREAM = "precox/SolarTT-UI"
 SHA = re.compile(r"[0-9a-f]{40}")
 VERSION = re.compile(r"v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
-
-
-class WatchError(RuntimeError):
-    pass
 
 
 def stable_version(tag):
@@ -44,58 +37,7 @@ class Release:
         return f"https://github.com/{UPSTREAM}/releases/tag/{self.tag}"
 
 
-class GitHub:
-    def __init__(self, token=None):
-        self.token = token
-
-    def request(self, method, path, payload=None):
-        headers = {"Accept": "application/vnd.github+json",
-                   "X-GitHub-Api-Version": "2022-11-28",
-                   "User-Agent": "SolarTT-UI-upstream-watch"}
-        if self.token:
-            headers["Authorization"] = "Bearer " + self.token
-        data = None
-        if payload is not None:
-            data = json.dumps(payload).encode()
-            headers["Content-Type"] = "application/json"
-        request = urllib.request.Request("https://api.github.com" + path,
-                                         data=data, headers=headers, method=method)
-        # Only reads may be retried. An ambiguous POST can already have created
-        # an issue; fail and let the next serialized run rediscover it.
-        attempts = 3 if method == "GET" else 1
-        for attempt in range(attempts):
-            try:
-                with urllib.request.urlopen(request, timeout=30) as response:
-                    return json.load(response)
-            except urllib.error.HTTPError as error:
-                # Rate limits fail immediately for a later workflow rerun; do
-                # not retry ahead of GitHub's Retry-After/reset window.
-                retryable = 500 <= error.code <= 599 and not error.headers.get("Retry-After")
-                if retryable and attempt + 1 < attempts:
-                    time.sleep(2 ** attempt)
-                    continue
-                hint = " (rate limit; retry the workflow later)" if error.code in (403, 429) else ""
-                raise WatchError(f"GitHub {method} {path}: HTTP {error.code}{hint}") from None
-            except (urllib.error.URLError, TimeoutError, OSError, http.client.HTTPException):
-                if attempt + 1 < attempts:
-                    time.sleep(2 ** attempt)
-                    continue
-                raise WatchError(f"GitHub {method} {path}: network failure") from None
-            except (ValueError, UnicodeError):
-                raise WatchError(f"GitHub {method} {path}: invalid JSON") from None
-
-    def pages(self, path):
-        """Read every page, including closed issues; never use search indexing."""
-        separator = "&" if "?" in path else "?"
-        for page in range(1, 1001):
-            items = self.request("GET", f"{path}{separator}per_page=100&page={page}")
-            if not isinstance(items, list) or any(not isinstance(item, dict) for item in items):
-                raise WatchError(f"GitHub {path}: expected an array of objects")
-            yield from items
-            if len(items) < 100:
-                return
-        raise WatchError(f"GitHub {path}: pagination safety limit reached")
-
+class GitHub(GitHubAPI):
     def commit(self, tag):
         value = self.request("GET", f"/repos/{UPSTREAM}/commits/" + urllib.parse.quote(tag, safe=""))
         if not isinstance(value, dict) or not isinstance(value.get("sha"), str) or not SHA.fullmatch(value["sha"]):
@@ -149,6 +91,7 @@ A new stable TrustTunnel release needs a compatibility review for SolarTT-UI.
 - Proposed upstream: [{proposed.canonical}]({proposed.url}), observed commit `{commit}`.
 - [Compare pinned source with proposed source](https://github.com/{UPSTREAM}/compare/{pin['commit']}...{commit}).
 - Review branch: `upstream/trusttunnel-{proposed.canonical}`.
+- [Prepare the update PR](https://github.com/{DOWNSTREAM}/compare/main...upstream/trusttunnel-{proposed.canonical}?expand=1&template=upstream-update.md) after pushing that branch; complete the maintenance template.
 
 This task records discovery only. The proposed commit is an observation, not a
 reviewed pin or an archive checksum. SolarTT's managed agent includes

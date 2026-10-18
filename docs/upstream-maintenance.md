@@ -10,8 +10,9 @@ reviewed commit and archive SHA256 in `upstream/pin.json`, never a moving tag.
 `.github/workflows/watch-trusttunnel.yml` runs on Mondays at **07:23 UTC** and
 supports **Actions → Watch TrustTunnel releases → Run workflow**. Select the
 default branch. The optional `dry_run` input reports candidates without filing
-issues. Normal scheduled and manual runs create one issue for **each** stable
-version newer than the pinned version, in ascending version order.
+issues or changing health issues. Normal scheduled and manual runs create one
+issue for **each** stable version newer than the pinned version, in ascending
+version order.
 
 The workflow must first be reviewed and merged into the repository's default
 branch (`main`). A PR or a successful unit test does not activate monitoring.
@@ -71,17 +72,60 @@ create some issues before a later POST fails; rerun after investigating the
 Actions error. Existing tasks are preserved. The workflow has a ten-minute cap;
 large histories that exceed it require maintainer investigation.
 
+## Failure notifications and recovery
+
+After a normal scheduled or manual run, a separate `report-health` job handles
+the watcher job's result, including failed tests and interrupted/timed-out checks:
+
+- First failure: create `upstream: TrustTunnel release watcher needs attention`.
+- Repeated failure: update the same issue with the latest failed attempt link.
+- Successful normal run: close the issue with a recovery attempt link, retaining
+  the last failure text. Success without an existing incident creates no issue.
+- Later failure: reopen the same closed issue instead of creating a duplicate.
+
+The hidden `<!-- solartt-upstream-watch:health -->` marker and a title fallback
+identify the service issue across all pages of open and closed issues. PRs and
+release tasks are excluded. Preserve the marker; keep investigation notes in
+comments because automation replaces the issue body on failure. Multiple matching
+health issues cause an error requiring manual consolidation. Mutating API calls
+are never blindly retried; the next run reconciles lost write responses.
+
+The reporter runs on another GitHub-hosted runner with only `contents: read`
+and `issues: write`. It does not import the discovery script or copy error output,
+logs, environment values, profiles or credentials into GitHub. The shared API
+client is `scripts/github_api.py`. Both jobs remain in the same serialized workflow
+concurrency group. Dry runs and skipped watcher jobs do not change health issues;
+a dry-run success cannot close an incident. A cancelled watcher job is reported
+as incomplete if GitHub can still run the reporter. Cancelling the whole workflow
+can prevent the reporting job from running, so cancellation alerts are best effort.
+
+To receive issue notifications, subscribe to **Watch → Custom → Issues** on the
+repository and select GitHub/email delivery in your personal notification
+settings. A created or reopened incident gives you a task to inspect; repeated
+failures update its body without posting repeated comments. Check Actions and
+personal Actions notification settings as well: unavailable Issues/API service,
+token restrictions or a failed reporting job can prevent issue delivery.
+
+This does **not** detect a workflow that never starts, is disabled, cannot obtain
+a runner or is cancelled before reporting. Until an independent check is configured, review the
+Actions page weekly. Investigate if there has been no successful **normal** run
+for ten days. A check for this must run independently of this scheduled workflow;
+adding another step to it cannot detect its own missing start. GitHub's 60-day
+inactivity shutdown applies to public repositories. Neither an external watchdog
+nor a human acceptance test environment is installed by this change.
+
 Local read-only checks (no build or server access):
 
 ```sh
-python3 -B -m unittest discover -s scripts -p test_watch_trusttunnel.py
+python3 -B -m unittest discover -s scripts -p 'test_*trusttunnel*.py'
 python3 -B scripts/watch_trusttunnel.py
 ```
 
 The second command reads the public API without authentication by default; an
 optional `GH_TOKEN` increases the API allowance. It never writes unless explicitly
 given `--create-issues`. Unit tests use synthetic API responses, including
-pagination, numeric ordering, prerelease filtering, closed tasks and API failures.
+pagination, numeric ordering, prerelease filtering, closed tasks, API failures and
+the service issue create/update/close/reopen lifecycle without live GitHub writes.
 They run in portable CI and before each discovery job.
 
 ## Updating a selected release
@@ -106,8 +150,16 @@ They run in portable CI and before each discovery job.
    Keep `h2_one_way_download_crosses_lease_boundary`, quota admission/exhaustion
    tests and `real_tls_revocation_closes_a_and_preserves_b_tcp_and_udp`.
 5. Open a PR linked to the issue with compatibility findings, source/checksum
-   evidence and CI results. Merge after review and create a **new SolarTT
-   release** using [the releasing process](releasing.md). An upstream release
+   evidence and CI results. Use
+   [the upstream update template](../.github/PULL_REQUEST_TEMPLATE/upstream-update.md):
+   select it with `template=upstream-update.md` in the PR form URL. Newly created
+   discovery issues include a compare link that selects it after the review
+   branch is pushed. The template records current/proposed identities, managed
+   patch decisions, API/schema/config/client compatibility, the six CI gates,
+   human acceptance and recovery limitations. Do not check unverified boxes.
+   Record exact supported upgrade versions; the historical alpha.1 pilot alone
+   does not verify an upgrade from alpha.5. Merge after review and create a
+   **new SolarTT release** using [the releasing process](releasing.md). An upstream release
    alone does not establish compatibility or authorize publication.
 6. Installation on Riga is a separate operational task in an agreed window:
    preserve the current package/provenance, make a backup with its matching key,
