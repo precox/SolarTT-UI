@@ -1,0 +1,24 @@
+name: Render documentation previews
+on:
+  workflow_dispatch:
+  push:
+    branches: ['docs/**']
+    paths:
+      - 'scripts/render_readme_previews.mjs'
+      - '.github/workflows/docs-previews.yml'
+permissions:
+  contents: read
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - run: node scripts/render_readme_previews.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: readme-mobile-previews
+          path: dist/readme-previews/
+          retention-days: 7
