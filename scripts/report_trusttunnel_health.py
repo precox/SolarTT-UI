@@ -9,6 +9,8 @@ from github_api import DOWNSTREAM, GitHubAPI, GitHubError
 
 TITLE = "upstream: TrustTunnel release watcher needs attention"
 MARKER = "<!-- solartt-upstream-watch:health -->"
+TEST_TITLE = "[TEST] TrustTunnel watcher notification delivery"
+TEST_MARKER = "<!-- solartt-upstream-watch:notification-test -->"
 # Numeric GitHub.com identity, not user-controlled issue text or a display name.
 BOT_USER_ID = 41898282  # https://api.github.com/users/github-actions%5Bbot%5D
 
@@ -19,7 +21,26 @@ def owned_by_actions(issue):
             and author["id"] == BOT_USER_ID and author.get("type") == "Bot")
 
 
-def failure_body(run_url):
+def failure_body(run_url, notification_test=False):
+    if notification_test:
+        return f"""{TEST_MARKER}
+# TEST ONLY: controlled notification delivery check
+
+This is an explicitly requested notification test, not a real watcher incident
+or a new upstream release. The test deliberately fails a job, then uses the same
+health reporter and built-in GitHub Actions token as normal monitoring.
+Release discovery is skipped. No upstream pin, package or server is changed.
+
+Latest test attempt: {run_url}
+
+Confirm receipt in your configured GitHub/email notification channel. Then run
+the workflow on the default branch with `notification_test=recovery` and
+`dry_run=false` to close this test issue. A later `notification_test=failure`
+reopens this same issue. Normal monitoring ignores this test issue.
+
+No logs, credentials or profiles are attached. Keep evidence in comments:
+automation owns this body. Preserve the hidden test marker.
+"""
     return f"""{MARKER}
 The TrustTunnel release watcher did not complete successfully. Release discovery is incomplete;
 this result does not mean that no new stable releases exist.
@@ -36,7 +57,8 @@ notes in comments: automation owns this body. Preserve the hidden marker.
 """
 
 
-def report(api, result, run_id, attempt, create=False, *, watch_run_id, watch_attempt):
+def report(api, result, run_id, attempt, create=False, *, watch_run_id, watch_attempt,
+           notification_test=False):
     if result not in ("success", "failure"):
         raise GitHubError("Health reporting requires a success or failure result")
     if any(not isinstance(value, str) or not re.fullmatch(r"[1-9][0-9]*", value)
@@ -46,6 +68,8 @@ def report(api, result, run_id, attempt, create=False, *, watch_run_id, watch_at
             or not isinstance(watch_run_id, str) or not isinstance(watch_attempt, str)):
         raise GitHubError("Watcher did not execute in this run attempt; use Re-run all jobs")
     run_url = f"https://github.com/{DOWNSTREAM}/actions/runs/{run_id}/attempts/{attempt}"
+    title, marker, other_marker = ((TEST_TITLE, TEST_MARKER, MARKER) if notification_test
+                                  else (TITLE, MARKER, TEST_MARKER))
     # Read every page before any write; an API failure is never an empty set.
     issues = [issue for issue in api.pages(f"/repos/{DOWNSTREAM}/issues?state=all")
               if "pull_request" not in issue and owned_by_actions(issue)]
@@ -53,8 +77,11 @@ def report(api, result, run_id, attempt, create=False, *, watch_run_id, watch_at
            or issue.get("body") is not None and not isinstance(issue["body"], str)
            for issue in issues):
         raise GitHubError("Invalid issue identity fields in health discovery")
-    matches = [issue for issue in issues if issue.get("title") == TITLE
-               or MARKER in (issue.get("body") or "").splitlines()]
+    # The other mode's marker takes precedence over a copied/edited title.
+    matches = [issue for issue in issues
+               if other_marker not in (issue.get("body") or "").splitlines()
+               and (issue.get("title") == title
+                    or marker in (issue.get("body") or "").splitlines())]
     if len(matches) > 1:
         raise GitHubError("Multiple watcher health issues found; consolidate them manually")
     issue = matches[0] if matches else None
@@ -63,18 +90,20 @@ def report(api, result, run_id, attempt, create=False, *, watch_run_id, watch_at
         raise GitHubError("Invalid watcher health issue response")
     action, payload = "none", None
     if result == "failure":
-        body = failure_body(run_url)
+        body = failure_body(run_url, notification_test)
         if not issue:
-            action, payload = "create", {"title": TITLE, "body": body}
+            action, payload = "create", {"title": title, "body": body}
         elif issue["state"] == "closed":
             action, payload = "reopen", {"state": "open", "body": body}
         elif issue.get("body") != body:
             action, payload = "update", {"body": body}
     elif issue and issue["state"] == "open":
         body = issue.get("body") or ""
-        if MARKER not in body.splitlines():
-            body = MARKER + "\n" + body
-        body += f"\n\nRecovery confirmed by a successful normal watcher attempt: {run_url}\n"
+        if marker not in body.splitlines():
+            body = marker + "\n" + body
+        recovery = ("TEST ONLY: notification test recovery completed" if notification_test
+                    else "Recovery confirmed by a successful normal watcher attempt")
+        body += f"\n\n{recovery}: {run_url}\n"
         action, payload = "close", {"state": "closed", "state_reason": "completed", "body": body}
     number = issue["number"] if issue else None
     if create and payload is not None:
@@ -89,6 +118,7 @@ def report(api, result, run_id, attempt, create=False, *, watch_run_id, watch_at
             raise GitHubError("Invalid health issue write response; rerun to reconcile before retrying")
         number = response["number"]
     return {"result": result, "mode": "create" if create else "dry-run",
+            "notification_test": notification_test,
             "action": action, "issue": number, "run_url": run_url}
 
 
@@ -99,6 +129,8 @@ def main():
     parser.add_argument("--attempt", default=os.environ.get("GITHUB_RUN_ATTEMPT"))
     parser.add_argument("--watch-run-id", default=os.environ.get("WATCH_RUN_ID"))
     parser.add_argument("--watch-attempt", default=os.environ.get("WATCH_ATTEMPT"))
+    parser.add_argument("--notification-test", action="store_true",
+                        help="use only the explicitly marked notification test issue")
     parser.add_argument("--create-issues", action="store_true", help="apply changes (default is read-only)")
     args = parser.parse_args()
     token = os.environ.get("GH_TOKEN")
@@ -110,7 +142,8 @@ def main():
     try:
         print(json.dumps(report(GitHubAPI(token), args.result, args.run_id, args.attempt,
                                 create=args.create_issues, watch_run_id=args.watch_run_id,
-                                watch_attempt=args.watch_attempt), indent=2))
+                                watch_attempt=args.watch_attempt,
+                                notification_test=args.notification_test), indent=2))
     except GitHubError as error:
         raise SystemExit(str(error)) from None
 

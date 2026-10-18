@@ -130,6 +130,51 @@ failures update its body without posting repeated comments. Check Actions and
 personal Actions notification settings as well: unavailable Issues/API service,
 token restrictions or a failed reporting job can prevent issue delivery.
 
+### Controlled notification delivery test
+
+Use **Actions → Watch TrustTunnel releases → Run workflow**, select the default
+branch and leave `dry_run=false`. The manual `notification_test` choice defaults
+to `none`; scheduled runs always use normal discovery. Test runs have `[TEST]`
+in the run name, skip release discovery entirely and never change a pin, simulate
+an upstream release, publish packages or contact servers. They use the same
+reporting job, freshness/ownership checks, built-in token and concurrency group.
+
+The separate issue is titled **[TEST] TrustTunnel watcher notification delivery**
+and has marker `<!-- solartt-upstream-watch:notification-test -->`. Its body says
+`TEST ONLY`. Test mode ignores real health issues; normal monitoring ignores test
+issues, including when a title was edited to match the other mode. Preserve the
+marker. Human-created copies are ignored, so do not create the test issue manually.
+
+Run each step as a **new manual dispatch**, waiting for completion before the next:
+
+1. Select `notification_test=failure`. The deliberately failed `watch` job is
+   expected; `report-health` must succeed with `notification_test: true` and
+   `action: create` (or `reopen` if a previous test issue exists). Verify its author
+   is `github-actions[bot]`, the title/body clearly identify a test and the attempt
+   link points to this run. Confirm the actual Issue notification in your chosen
+   GitHub/email channel; an Actions-failure notification alone is not that proof.
+2. Select `failure` again. Expect `action: update`, the same issue number and no
+   duplicate. Body updates are not expected to produce a fresh Issue notification.
+3. Select `recovery`. Both jobs must succeed; expect `action: close` on the same
+   test issue, with a clearly marked test recovery link. Confirm the close event
+   and its delivery according to your notification settings.
+4. Select `failure` again. Expect `action: reopen` on the same issue. Check receipt
+   of the reopened Issue notification.
+5. Select `recovery` once more to leave the test issue closed. Keep it for reuse
+   and record run/issue links and the owner's delivery confirmation. Do not
+   publish private notification contents or addresses as evidence.
+
+With `dry_run=true` the health reporter is skipped, so no notification is sent.
+A `recovery` run without an existing test issue does nothing. A successful test
+recovery does not establish a successful upstream discovery run. After testing,
+run once with `notification_test=none`, `dry_run=false` to verify normal discovery
+and health reporting still succeed. Never use historical pre-fix reruns for this
+test; start from the updated default branch.
+
+Actions/API results establish Issue writes and lifecycle only. Delivery remains
+unverified until the owner confirms receipt; this workflow cannot read their
+inbox. Record unobserved notifications as unverified rather than assuming success.
+
 This does **not** detect a workflow that never starts, is disabled, cannot obtain
 a runner or is cancelled before reporting. Until an independent check is configured, review the
 Actions page weekly. Investigate if there has been no successful **normal** run
