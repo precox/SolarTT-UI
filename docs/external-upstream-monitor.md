@@ -1,16 +1,26 @@
 # External control of missing upstream checks
 
-Status: checker prepared; external scheduling and notification delivery are **not
-deployed or verified** by this change. Keep the weekly manual review until the
-activation checklist below is completed. No timer is installed on Riga, the
-operator's Codex host or any other server.
+Status: integration/checker prepared; external monitoring and notification
+delivery are **not activated or verified** by this change. The selected route is
+[Healthchecks with success signals](healthchecks-setup.md), which requires no
+spare server. Keep weekly manual review until its activation checklist passes.
+No timer is installed on Riga, the operator's Codex host or any other server.
 
 The watcher can report an error only after it starts. A disabled workflow,
 missing runner or dropped schedule needs another observer. A second workflow in
 the same repository shares GitHub's scheduler/inactivity failure modes and is not
-the independent monitor described here.
+an independent timer. In the selected scheme, GitHub only sends a success signal;
+Healthchecks independently detects its absence and sends notifications.
 
-## Read-only check
+## Selected route: Healthchecks
+
+Follow the [exact account, 7-day period + 3-day grace, secret and opt-in setup](healthchecks-setup.md).
+Only successful fresh normal watcher attempts send empty HTTPS POSTs. Dry runs,
+notification tests and stale retries cannot extend the external ten-day window.
+The read-only checker below remains an optional audit/alternative for an existing
+external monitoring host; deploying it is not required for Healthchecks.
+
+## Optional read-only checker
 
 Run on a separate monitoring service/host with Python 3.11+ and HTTPS access to
 `api.github.com`. Copy the reviewed `scripts/check_trusttunnel_freshness.py` and

@@ -4,6 +4,10 @@ Status: **prepared inputs, no persistent environment provisioned or deployed**.
 The CI kit does not claim Android, real-network, sustained-load or owner acceptance.
 Riga and working-user accounts are outside this procedure.
 
+Persistent environment deployment is deferred by the owner pending an available
+host. Do not provision a VM or place the candidate on another working service
+from this preparation alone. The CI kit and automated upgrade pilots continue.
+
 ## When this gate applies
 
 Before publishing an agent or panel behavior change, identify the affected flows

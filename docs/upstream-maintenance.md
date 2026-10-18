@@ -183,10 +183,12 @@ adding another step to it cannot detect its own missing start. GitHub's 60-day
 inactivity shutdown applies to public repositories. Neither an external watchdog
 nor a human acceptance test environment is installed by this change.
 
-The read-only [external checker and activation procedure](external-upstream-monitor.md)
-are now prepared. It uses a successful normal-check receipt step, not green
-dry-run/test workflows. External scheduling, independent alert delivery and its
-own missed-run control still require a chosen executor and verification.
+The selected [Healthchecks setup](healthchecks-setup.md) uses an external ten-day
+countdown and fresh normal-run success signals, without another server. Its
+repository secret, explicit opt-in variable and real delivery still need
+activation/verification. The [read-only external checker](external-upstream-monitor.md)
+remains an optional audit/alternative. Green dry runs and notification tests
+refresh neither method.
 
 Local read-only checks (no build or server access):
 
