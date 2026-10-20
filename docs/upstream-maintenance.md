@@ -251,3 +251,8 @@ They run in portable CI and before each discovery job.
 
 Only discovery and issue creation are automated. Patch porting, pin changes,
 merges, package publication and installation remain explicit reviewed actions.
+
+RustSec dependency findings and GitHub Actions versions have a separate
+[automatic dependency maintenance process](dependency-maintenance.md). That
+process can prepare bounded patch PRs or report-only manual drafts; it does not
+advance the TrustTunnel pin or replace its managed compatibility review.

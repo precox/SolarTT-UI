@@ -1,0 +1,96 @@
+name: Dependency maintenance
+run-name: Dependency maintenance${{ inputs.dry_run && ' [DRY RUN]' || '' }}
+on:
+  schedule:
+    - cron: '41 6 * * *' # Daily 06:41 UTC, independent of pushes.
+  push:
+    branches: [main]
+    paths:
+      - Cargo.lock
+      - upstream/license-review.json
+      - scripts/dependency_policy.py
+      - scripts/maintain_dependencies.py
+      - scripts/publish_dependency_update.py
+      - .github/workflows/dependency-maintenance.yml
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Audit and prepare only; do not create branches/PRs or affect live notification health'
+        type: boolean
+        default: true
+permissions: {}
+concurrency:
+  group: dependency-maintenance
+  cancel-in-progress: false
+jobs:
+  prepare:
+    if: >-
+      github.repository == 'precox/SolarTT-UI' &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      vulnerabilities: ${{ steps.prepare.outputs.vulnerabilities }}
+    steps:
+      - name: Record live dependency maintenance invocation
+        if: inputs.dry_run != true
+        run: echo 'Live dependency audit started; external notifications use this step, never dry runs.'
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d
+        with:
+          toolchain: 1.95.0
+      - name: Audit and prepare conservative proposal
+        id: prepare
+        run: python3 -B scripts/maintain_dependencies.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dependency-proposal-${{ github.run_id }}-${{ github.run_attempt }}
+          path: dist/dependency-maintenance/proposal.json
+          retention-days: 7
+  publish:
+    needs: prepare
+    if: >-
+      vars.DEPENDENCY_MAINTENANCE_ENABLED == 'true' && inputs.dry_run != true &&
+      needs.prepare.outputs.vulnerabilities != '0' &&
+      github.repository == 'precox/SolarTT-UI' &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: dependency-proposal-${{ github.run_id }}-${{ github.run_attempt }}
+          path: proposal/
+      - name: Validate non-code delta, create PR and explicitly request CI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRY_RUN: 'false'
+          DEPENDENCY_MAINTENANCE_ENABLED: ${{ vars.DEPENDENCY_MAINTENANCE_ENABLED }}
+        run: python3 -B scripts/publish_dependency_update.py
+  audit-result:
+    needs: [prepare, publish]
+    if: always() && needs.prepare.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    permissions: {}
+    steps:
+      - name: Report unresolved vulnerabilities without claiming a deployed fix
+        env:
+          FINDINGS: ${{ needs.prepare.outputs.vulnerabilities }}
+        run: |
+          if [[ "$FINDINGS" != 0 ]]; then
+            echo '::error::Default branch still has RustSec findings. Review the proposal; PR creation is not a merged or deployed fix.'
+            exit 1
+          fi
+          echo 'No known vulnerabilities in the audited default-branch lockfile.'

@@ -34,6 +34,8 @@ class GitHubAPI:
         for attempt in range(attempts):
             try:
                 with urllib.request.urlopen(request, timeout=30) as response:
+                    if getattr(response, "status", None) == 204:
+                        return None
                     return json.load(response)
             except urllib.error.HTTPError as error:
                 # Rate limits fail immediately for a later workflow rerun; do
