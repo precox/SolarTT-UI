@@ -2,23 +2,31 @@
 
 Status: integration/checker prepared; external monitoring and notification
 delivery are **not activated or verified** by this change. The selected route is
-[Healthchecks with success signals](healthchecks-setup.md), which requires no
-spare server. Keep weekly manual review until its activation checklist passes.
+[a self-hosted checker with Telegram delivery](self-hosted-upstream-monitor.md)
+on the owner's separate monitoring host. Keep weekly manual review until its
+activation checklist passes.
 No timer is installed on Riga, the operator's Codex host or any other server.
 
 The watcher can report an error only after it starts. A disabled workflow,
 missing runner or dropped schedule needs another observer. A second workflow in
 the same repository shares GitHub's scheduler/inactivity failure modes and is not
-an independent timer. In the selected scheme, GitHub only sends a success signal;
-Healthchecks independently detects its absence and sends notifications.
+an independent timer. In the selected scheme, an external systemd timer reads
+GitHub Actions and sends incidents/recoveries to the existing Telegram chat.
 
-## Selected route: Healthchecks
+## Selected route: own server and Telegram
+
+Follow the [installation, isolation and controlled delivery procedure](self-hosted-upstream-monitor.md).
+The sender uses the read-only checker below, durable deduplication and private
+systemd credentials. No GitHub heartbeat secret or inbound HTTP endpoint is
+needed. Its own host/timer failure remains an explicitly documented blind spot.
+
+## Alternative: Healthchecks
 
 Follow the [exact account, 7-day period + 3-day grace, secret and opt-in setup](healthchecks-setup.md).
 Only successful fresh normal watcher attempts send empty HTTPS POSTs. Dry runs,
 notification tests and stale retries cannot extend the external ten-day window.
-The read-only checker below remains an optional audit/alternative for an existing
-external monitoring host; deploying it is not required for Healthchecks.
+The read-only checker below is used by the selected self-hosted route and can
+also run as a standalone audit.
 
 ## Optional read-only checker
 

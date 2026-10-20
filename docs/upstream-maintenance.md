@@ -183,12 +183,13 @@ adding another step to it cannot detect its own missing start. GitHub's 60-day
 inactivity shutdown applies to public repositories. Neither an external watchdog
 nor a human acceptance test environment is installed by this change.
 
-The selected [Healthchecks setup](healthchecks-setup.md) uses an external ten-day
-countdown and fresh normal-run success signals, without another server. Its
-repository secret, explicit opt-in variable and real delivery still need
-activation/verification. The [read-only external checker](external-upstream-monitor.md)
-remains an optional audit/alternative. Green dry runs and notification tests
-refresh neither method.
+The selected [self-hosted checker and Telegram delivery](self-hosted-upstream-monitor.md)
+uses an hourly timer on a separate host and the
+[read-only external checker](external-upstream-monitor.md). Deployment, normal-run
+verification and actual Telegram receipt are still required. Keep the
+[alternative Healthchecks integration](healthchecks-setup.md) disabled unless
+explicitly choosing it. Green dry runs and notification tests refresh neither
+method. The self-hosted monitor cannot independently detect its own host failure.
 
 Local read-only checks (no build or server access):
 

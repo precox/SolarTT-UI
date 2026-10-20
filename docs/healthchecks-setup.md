@@ -1,8 +1,9 @@
 # Healthchecks setup for missing watcher runs
 
-Status: integration prepared, **not activated or delivery-tested**. The owner
-selected this approach; a separate checker host is not needed. Keep manual
-weekly review until the live activation and notification tests below pass.
+Status: alternative integration prepared, **not activated or delivery-tested**.
+The owner now selected [an own server with Telegram](self-hosted-upstream-monitor.md);
+leave the Healthchecks opt-in variable unset/false for that route. Keep manual
+weekly review until the selected route's activation tests pass.
 The persistent human-acceptance environment remains deferred because no spare
 host is available; its passive kit and both CI upgrade pilots remain usable.
 
