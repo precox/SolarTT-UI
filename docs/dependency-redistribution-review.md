@@ -71,3 +71,28 @@ this review record. Published checksums and build.json bind the release assets
 to the source commit and upstream pin. These are provenance/completeness checks;
 they do not establish a legal certification, reproducible binary builds, absence
 of vulnerabilities, or suitability for an untrusted production deployment.
+
+## Security maintenance review — 2026-10-20
+
+`rustls-webpki` advances from 0.103.15 to 0.103.16 to address
+[RUSTSEC-2026-0382](https://rustsec.org/advisories/RUSTSEC-2026-0382.html)
+([upstream fix](https://github.com/rustls/webpki/pull/546)). The update rejects
+certificate paths containing known distrusted emSign public keys. Certificate
+chains using those keys are intentionally no longer accepted; this is a change
+to certificate verification, not a claim that an installed endpoint is exploitable.
+
+Both crate archives were independently downloaded from crates.io and their
+SHA-256 values checked against the crates.io index. The 0.103.16 archive digest is
+`4443b1b6d39d7c663139942cc4558262562d2c84123bb6282ef177009ca8b281`.
+The declared ISC license and the exact notice inventory remain unchanged:
+`LICENSE` SHA-256 is
+`5b698ca13897be3afdb7174256fa1574f8c6892b8bea1a66dd6469d3fe27885a`.
+The old and new index records have identical dependency requirements, features
+and minimum Rust version. No other resolved package is changed by this update.
+The exact review record changes only this package identity; the historical
+2026-10-15 inventory remains a record of its original build.
+
+Locked resolution, full notice collection and compatibility regressions must
+pass CI before release. Updating this source lockfile does not update existing
+alpha.5 packages or installed nodes. A package release and any production
+installation remain separate reviewed operations.
