@@ -1,0 +1,11 @@
+[Unit]
+Description=Hourly independent TrustTunnel watcher check
+
+[Timer]
+OnCalendar=hourly
+RandomizedDelaySec=120
+AccuracySec=1min
+Persistent=yes
+
+[Install]
+WantedBy=timers.target

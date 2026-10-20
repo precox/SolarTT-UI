@@ -21,10 +21,15 @@ patch porting, compatibility review and all release gates still apply.
 4. Create a unique annotated tag whose version matches Cargo.toml, then push it.
    The tag must point to a commit contained in `main`. Use an alpha tag such as
    `v0.1.0-alpha.5`; stable tags are intentionally rejected by the alpha publisher.
-5. The tagged CI build runs six prerequisite jobs. Only the publish job receives
+5. The tagged CI build runs six prerequisite gates, including both alpha.1 and
+   alpha.5 pilot matrix legs. Only the publish job receives
    `contents: write`. It checks source/build/tag identity, asset checksums,
    successful prerequisites and private reporting before creating a draft.
    Uploads are verified before the draft becomes a public **prerelease**.
+   The alpha.5 upgrade report must match both the published baseline and this
+   candidate's exact source/deb SHA256; it is attached with the historical report.
+   For agent/panel behavior changes, record [human acceptance](manual-acceptance.md)
+   before authorizing publication; a prepared CI kit is not that acceptance.
 6. Check the actual Releases page, prerelease flag, asset list and public download
    checksums. Verify build.json's source commit against the resolved tag and the
    release-tests.json workflow link. CI artifacts expire; release assets are the

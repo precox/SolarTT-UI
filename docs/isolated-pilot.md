@@ -22,13 +22,41 @@ reconstructs and builds that source with its original lockfile and notices;
 it does not manufacture schema 1 from new code. Current packages come from the
 native job in the same workflow, with checked package hashes.
 
+The `pilot` gate is a two-baseline matrix. `pilot (alpha1)` retains the original
+source reconstruction, migration, old-schema refusal and recovery scenario below.
+`pilot (alpha5)` runs on a separate fresh VM and uses the actual published
+alpha.5 Debian package, not a rebuilt substitute. `upstream/upgrade-alpha5-pin.json`
+pins its source `1c1b00ca4472b605086ad319be6121412be245e6` and the independently
+checked SHA256 of its deb, build identity and published checksum manifest.
+
+The alpha.5 scenario creates synthetic A/B users with device limits and real
+TCP/UDP traffic on schema 2. It upgrades to the exact native-job candidate and
+compares policy/credential and per-user ledger fingerprints, saved profiles,
+UIDs, configurations, key/admin hashes and counters. It tests active-database
+rollback refusal, stopped compatible-snapshot rollback with the actual alpha.5
+binary, refusal after new spend, candidate restore with both profiles and further
+payload, and package removal preserving data and unrelated services. It does not
+promise that alpha.5 can open a future candidate's changed database directly.
+
+`dist/alpha5-upgrade-report.json` records both source commits/package hashes and
+actual outcomes. The release publisher requires it to match the reviewed baseline
+and exact candidate deb, and attaches it alongside the historical `pilot-report.json`.
+The logical six release gates remain; both matrix legs must pass the pilot gate.
+When the development version has not changed, baseline and candidate can have the
+same version string; source/package identities still distinguish them.
+
+After that scenario passes, CI assembles the passive
+[manual acceptance kit](manual-acceptance.md). Its creation does not provision an
+endpoint or establish human acceptance. Neither upgrade pilot replaces the native
+H2 pre-fix/fixed proof, quotas or revoke-A/preserve-B regressions.
+
 ## Scenario
 
 1. Fresh alpha.1 package install; confirm services do not auto-start. Configure
    synthetic accounts, protected key/hash files and a trusted fixture certificate.
 2. Verify real H2 authentication, official CLI HTTPS and UDP/DNS payload. Stop
    cleanly, verify durable charge/confirmed counters and snapshot schema 1.
-3. Upgrade to alpha.2 with unchanged account UIDs, data key, administrator hash and
+3. Upgrade to the current candidate with unchanged account UIDs, data key, administrator hash and
    configuration. Check the old snapshot without changing it. Start and verify
    actual migration, preserved profiles, policy revision and quota charge.
 4. Reject rollback while the database is active. With the agent stopped and no

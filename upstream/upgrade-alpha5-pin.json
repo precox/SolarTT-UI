@@ -1,0 +1,11 @@
+{
+  "repository": "precox/SolarTT-UI",
+  "tag": "v0.1.0-alpha.5",
+  "version": "0.1.0-alpha.5",
+  "commit": "1c1b00ca4472b605086ad319be6121412be245e6",
+  "assets_sha256": {
+    "SHA256SUMS": "25296c677dd01c23f5d69ed3afc5360003c2dc0796b5f16999eb863cdb54f484",
+    "build.json": "a8f74b5a671f39d87849fc9ab4207acf5b9e10b2d25fde24e53bed81ce944770",
+    "solartt-ui_0.1.0-alpha.5_amd64.deb": "83abe7ff65dd3883947eb599b5d4b8f48008c5cd45a024fe7b33eafaee3e0b2e"
+  }
+}

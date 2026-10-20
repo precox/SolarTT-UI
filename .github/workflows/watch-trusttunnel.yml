@@ -32,6 +32,7 @@ jobs:
     outputs:
       observed_run_id: ${{ steps.observation.outputs.run_id }}
       observed_attempt: ${{ steps.observation.outputs.attempt }}
+      normal_completed_at: ${{ steps.normal.outputs.completed_at }}
     permissions:
       contents: read
       issues: write
@@ -59,6 +60,7 @@ jobs:
           echo '::error::TEST ONLY: deliberate failure for notification delivery; no upstream discovery or server changes'
           exit 1
       - name: Discover stable releases and file maintenance tasks
+        id: discovery
         if: inputs.notification_test == 'none' || !inputs.notification_test
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -67,6 +69,14 @@ jobs:
           args=()
           if [[ "$DRY_RUN" != true ]]; then args+=(--create-issues); fi
           python3 -B scripts/watch_trusttunnel.py "${args[@]}"
+      - name: Record successful normal TrustTunnel check
+        id: normal
+        if: >-
+          steps.discovery.outcome == 'success' && inputs.dry_run != true &&
+          (inputs.notification_test == 'none' || !inputs.notification_test)
+        run: |
+          printf 'completed_at=%s\n' "$(date +%s)" >> "$GITHUB_OUTPUT"
+          echo 'Normal upstream discovery completed successfully; external freshness check uses this step completion time.'
   report-health:
     needs: watch
     if: >-
@@ -98,3 +108,30 @@ jobs:
             *) echo '::error::Invalid notification test mode'; exit 1 ;;
           esac
           python3 -B scripts/report_trusttunnel_health.py --result "$WATCH_RESULT" --create-issues "${args[@]}"
+  heartbeat:
+    needs: [watch, report-health]
+    if: >-
+      github.repository == 'precox/SolarTT-UI' &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+      vars.TRUSTTUNNEL_HEARTBEAT_ENABLED == 'true' &&
+      needs.watch.result == 'success' && needs.report-health.result == 'success' &&
+      inputs.dry_run != true &&
+      (inputs.notification_test == 'none' || !inputs.notification_test)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Signal a fresh normal check to Healthchecks
+        env:
+          HEALTHCHECKS_TRUSTTUNNEL_PING_URL: ${{ secrets.HEALTHCHECKS_TRUSTTUNNEL_PING_URL }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          WATCH_RUN_ID: ${{ needs.watch.outputs.observed_run_id }}
+          WATCH_ATTEMPT: ${{ needs.watch.outputs.observed_attempt }}
+          NORMAL_COMPLETED_AT: ${{ needs.watch.outputs.normal_completed_at }}
+          DRY_RUN: ${{ inputs.dry_run || false }}
+          NOTIFICATION_TEST: ${{ inputs.notification_test || 'none' }}
+        run: python3 -B scripts/ping_trusttunnel_healthchecks.py

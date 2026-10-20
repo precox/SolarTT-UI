@@ -50,6 +50,17 @@ def verify_uploaded_asset(path, uploaded):
         raise ValueError('GitHub asset digest mismatch')
 
 
+def validate_upgrade_report(report, commit, package_sha256, baseline):
+    old_packages = [name for name in baseline['assets_sha256'] if name.endswith('.deb')]
+    if (len(old_packages) != 1 or report.get('status') != 'PASS'
+            or report.get('candidate_commit') != commit
+            or report.get('candidate_package_sha256') != package_sha256
+            or report.get('baseline_commit') != baseline['commit']
+            or report.get('baseline_version') != baseline['version']
+            or report.get('baseline_package_sha256') != baseline['assets_sha256'][old_packages[0]]):
+        raise ValueError('Alpha.5 upgrade evidence differs from this baseline or release candidate')
+
+
 def withdraw_superseded(api):
     for entry in json.loads((ROOT / 'docs/releases/withdrawn.json').read_text()):
         release = api('GET','/releases/tags/'+entry['tag'])
@@ -98,6 +109,11 @@ def main():
         shutil.copyfile(inputs / name, output / name)
     shutil.copyfile(ROOT / 'dist/minimal/minimal-runtime.json', output / 'minimal-runtime.json')
     shutil.copyfile(ROOT / 'dist/pilot/pilot-report.json', output / 'pilot-report.json')
+    alpha5 = json.loads((ROOT / 'dist/alpha5/alpha5-upgrade-report.json').read_text())
+    validate_upgrade_report(alpha5, commit, hashlib.sha256(
+        (inputs / f'solartt-ui_{version}_amd64.deb').read_bytes()).hexdigest(),
+        json.loads((ROOT / 'upstream/upgrade-alpha5-pin.json').read_text()))
+    shutil.copyfile(ROOT / 'dist/alpha5/alpha5-upgrade-report.json', output / 'alpha5-upgrade-report.json')
     for name in ['minimal-runtime.json','license-review-result.json']:
         if json.loads((output / name).read_text())['status'] != 'PASS':
             raise SystemExit('An attached release report did not pass')

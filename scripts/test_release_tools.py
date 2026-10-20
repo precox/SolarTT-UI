@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 from license_review import verify
-from publish_alpha import checked_manifest, validate_identity, verify_uploaded_asset
+from publish_alpha import checked_manifest, validate_identity, validate_upgrade_report, verify_uploaded_asset
 
 
 class LicenseReviewTests(unittest.TestCase):
@@ -49,6 +49,16 @@ class LicenseReviewTests(unittest.TestCase):
 
 
 class PublicationGuards(unittest.TestCase):
+    def test_upgrade_report_must_match_candidate_and_published_baseline(self):
+        baseline = {'commit':'a'*40, 'version':'0.1.0-alpha.5', 'assets_sha256':{'old.deb':'b'*64}}
+        report = {'status':'PASS', 'candidate_commit':'c'*40, 'candidate_package_sha256':'d'*64,
+                  'baseline_commit':baseline['commit'], 'baseline_version':baseline['version'],
+                  'baseline_package_sha256':'b'*64}
+        validate_upgrade_report(report, 'c'*40, 'd'*64, baseline)
+        for key in report:
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                validate_upgrade_report({**report, key:'wrong'}, 'c'*40, 'd'*64, baseline)
+
     def test_normalized_filename_is_rejected_before_publication(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder)/'solartt_0.1~alpha3.deb'
