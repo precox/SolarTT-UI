@@ -6,12 +6,13 @@ import json
 import subprocess
 import tarfile
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 from dependency_policy import (ManualReview, choose_target, findings, fingerprint,
-                               matches, review_target, validate_patch)
+                               matches, review_target, validate_patch, version)
 from github_api import DOWNSTREAM, GitHubError
 from maintain_dependencies import audit, database_snapshot, prepare
 from publish_dependency_update import publish, validate
@@ -73,6 +74,52 @@ class PolicyTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 findings(data, code)
         self.assertEqual(findings(audit_report([]), 0)[1], [])
+
+    def test_build_metadata_findings_produce_publishable_manual_report_without_cargo(self):
+        locked = tomllib.loads((Path(__file__).resolve().parents[1] / "Cargo.lock").read_text())["package"]
+        examples = [(p["name"], p["version"]) for p in locked if "+" in p["version"]]
+        self.assertTrue(examples)
+        for name, current in examples:
+            with self.subTest(package=name, version=current):
+                self.root.joinpath("Cargo.lock").write_text(OLD.replace('name = "example"', f'name = "{name}"')
+                                                          .replace('version = "1.2.3"', f'version = "{current}"'))
+                observation = {**OBSERVATION, "package": name, "version": current}
+                data = audit_report([observation])
+                self.assertEqual(findings(data, 1)[1], [observation])
+                with patch("maintain_dependencies.command") as command, \
+                        patch("maintain_dependencies.require_runner") as runner, \
+                        patch("maintain_dependencies.review_target") as review:
+                    candidate = prepare(self.root, data, 1, BASE,
+                                        registry=lambda _: self.fail("Metadata must not trigger registry access"))
+                self.assertEqual(candidate["summary"]["decision"], "manual")
+                self.assertEqual(candidate["summary"]["reason"], "build_metadata_requires_manual_review")
+                self.assertEqual(candidate["summary"]["findings"][0]["version"], current)
+                self.assertEqual(len(candidate["files"]), 1)
+                validate(candidate, self.root)
+                api = API(candidate)
+                publish(api, candidate["summary"], candidate["files"], "main")
+                request = next(payload for method, path, payload in api.calls
+                               if method == "POST" and path.endswith("/pulls"))
+                self.assertTrue(request["draft"])
+                command.assert_not_called()
+                runner.assert_not_called()
+                review.assert_not_called()
+
+    def test_semver_metadata_is_valid_input_but_never_an_automatic_target(self):
+        for value in ("1.2.3+001", "1.2.3-beta.1+build.02", "0.11.1+wasi-snapshot-preview1"):
+            self.assertEqual(findings(audit_report([{**OBSERVATION, "version": value}]), 1)[1][0]["version"], value)
+            with self.assertRaises(ManualReview):
+                version(value, stable=True)
+        for value in ("1.2.3+", "1.2.3+build..1", "1.2.3+build/1", "1.2.3-01", "1.2.3-beta.01+build"):
+            with self.assertRaises(ValueError):
+                findings(audit_report([{**OBSERVATION, "version": value}]), 1)
+        records = {v: {"yanked": False} for v in ("1.2.4+build.1", "1.2.5", "1.2.6-beta.1+build")}
+        self.assertEqual(choose_target("1.2.3", records, [OBSERVATION]), "1.2.5")
+        reviewed = json.loads(REVIEW)
+        reviewed["packages"][0]["version"] = "1.2.4+build.1"
+        with self.assertRaises((ValueError, ManualReview)):
+            validate_patch(OLD, NEW.replace("1.2.4", "1.2.4+build.1"), REVIEW, json.dumps(reviewed),
+                           {**TARGET, "to": "1.2.4+build.1"})
 
     def test_no_fetch_audit_requires_clean_unchanged_database_provenance(self):
         response = audit_report([])

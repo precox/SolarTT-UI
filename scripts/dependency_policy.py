@@ -10,7 +10,9 @@ import urllib.request
 REGISTRY = "registry+https://github.com/rust-lang/crates.io-index"
 SHA = re.compile(r"[0-9a-f]{40}")
 CRATE = re.compile(r"[a-zA-Z0-9_][a-zA-Z0-9_-]{0,63}")
-VERSION = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-([0-9A-Za-z.-]+))?")
+PRE = r"(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)"
+VERSION = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
+                     rf"(?:-({PRE}(?:\.{PRE})*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?")
 
 
 class ManualReview(RuntimeError):
@@ -21,10 +23,11 @@ def version(value, stable=False):
     match = VERSION.fullmatch(value) if isinstance(value, str) else None
     if not match or (stable and match[4]):
         raise ManualReview("noncanonical_or_prerelease_version")
+    # Accept complete SemVer identities in audit/report data, while keeping
+    # automatic version selection narrower than Cargo's version grammar.
+    if match[5]:
+        raise ManualReview("build_metadata_requires_manual_review")
     pre = match[4]
-    if pre and any(not part or (part.isdigit() and len(part) > 1 and part.startswith("0"))
-                   for part in pre.split(".")):
-        raise ManualReview("unsupported_advisory_range")
     # Numeric prerelease identifiers sort before nonnumeric ones; a stable
     # version sorts after any prerelease of the same core version.
     suffix = ((2, ""),) if pre is None else tuple(

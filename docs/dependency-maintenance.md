@@ -38,6 +38,8 @@ changed dependency requirements, changed notices, or failed Cargo preparation
 produce a **draft PR containing only the report**. It explicitly requires manual
 work and may have a red security gate until that work is done. Unexpected API,
 checksum or audit failures stop processing; no plausible-looking fix is invented.
+Valid SemVer identities with `+build.metadata` are retained in audit/report data
+and also produce a manual draft; they are not selected as automatic patch targets.
 
 The minimum three-component comparator ranges (`>=`, `>`, `<=`, `<`, `=` with
 comma conjunctions, including prerelease bounds) are supported conservatively.
@@ -111,9 +113,16 @@ dry runs cannot close an incident. Old reruns beyond this window do not extend
 it. Exact-attempt receipt checks prevent reporter-only retries from fabricating
 a new observation. This is separate from the TrustTunnel watcher's unchanged
 ten-day policy. The observer limits each cycle to twelve logical GitHub reads;
-exhaustion/API/rate-limit errors become UNKNOWN. If public API allowance is
-insufficient, the existing optional GitHub credential needs only Actions/PR read
-access on this repository. Never give the observer write access.
+API/rate-limit errors or inability to establish the audit/open-PR inventory become
+UNKNOWN. After that inventory is established, the local budget defers remaining
+closure/CI reads to subsequent cycles. A durable rotating PR cursor shares the
+available budget between closure and CI work across cycles. Already verified
+observations are retained; an unread CI result stays pending. The worker logs
+`prs_deferred=true` while work remains; this does not change the verified daily
+audit status. The same three-message cap still applies to delivered events.
+If public API allowance is insufficient, the existing optional GitHub credential
+needs only Actions/PR read access on this repository. Never give the observer
+write access.
 
 Acknowledgements are saved after each accepted Telegram response. At most three
 messages are sent per cycle with spacing; remaining events wait for the next

@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 BASE = f"/repos/{DOWNSTREAM}"
 BOT_ID = 41898282
 REASONS = {"stable_patch_with_identical_notices", "multiple_vulnerable_package_identities",
+           "build_metadata_requires_manual_review",
            "unsupported_dependency_source_or_identity", "missing_exact_license_review",
            "noncanonical_or_prerelease_version", "unsupported_advisory_range",
            "no_supported_stable_patch", "dependency_features_or_msrv_changed",

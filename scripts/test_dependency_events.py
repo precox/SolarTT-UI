@@ -12,7 +12,7 @@ from github_api import GitHubAPI, GitHubError
 from notify_dependency_events import FAILURE, report, snapshot, validate_snapshot
 from notify_trusttunnel_telegram import MonitorError
 from scan_dependency_events import (LIVE_RECEIPT, WORKFLOW_URL, audit_snapshot,
-                                    managed, pr_snapshot, scan)
+                                    LimitedAPI, managed, pr_snapshot, scan)
 
 NOW = datetime(2026, 10, 20, 21, tzinfo=timezone.utc)
 
@@ -60,12 +60,74 @@ class API:
             return {"workflow_runs": self.runs}
         if "/workflows/" in path:
             return {"state": "active"}
+        if "/pulls?" in path:
+            return self.prs
         if "/pulls/" in path:
             return self.closed[int(path.rsplit("/", 1)[1])]
         return {"default_branch": "main"}
 
 
 class ObservationTests(unittest.TestCase):
+    def test_closed_backlog_and_new_prs_make_durable_progress_within_api_budget(self):
+        backend = API()
+        backend.prs = [pull(n, head={**pull()["head"], "sha": f"{n:040x}"}) for n in range(20, 25)]
+        backend.closed = {n: pull(n, state="closed") for n in range(10, 15)}
+        backend.ci = [{"id": n + 100, "head_sha": f"{n:040x}", "status": "completed",
+                       "conclusion": "success", "event": "workflow_dispatch", "run_started_at": NOW.isoformat()}
+                      for n in range(20, 25)]
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "events.json"
+            path.write_text(json.dumps({"version": 1, "audit": {"status": "OK", "notified_at": 100},
+                                       "prs": {str(n): {"head": "a" * 40, "state": "open", "draft": False,
+                                                        "ci": "success", "notified_at": 100} for n in range(10, 15)}}))
+            sent = []
+            for tick in range(10):
+                state = json.loads(path.read_text())
+                tracked = [int(n) for n, pr in state["prs"].items() if pr["state"] == "open"]
+                with patch.object(GitHubAPI, "request", side_effect=backend.request) as reads:
+                    data = scan(LimitedAPI(), tracked, NOW, cursor=state.get("cursor", 0))
+                    self.assertLessEqual(reads.call_count, 12)
+                self.assertEqual(data["audit"]["status"], "OK")
+                if tick == 0:
+                    self.assertTrue(data["deferred"])
+                self.assertLessEqual(report(path, data, sent.append, now=200 + tick), 3)
+            final = json.loads(path.read_text())
+            self.assertTrue(all(final["prs"][str(n)]["state"] == "closed" for n in range(10, 15)))
+            self.assertTrue(all(final["prs"][str(n)]["ci"] == "success" for n in range(20, 25)))
+            self.assertEqual(len(sent), 15)  # Five closures, five new PRs, five passing CI results.
+            self.assertTrue(all(sum(f"PR #{n} закрыт" in text for text in sent) == 1 for n in range(10, 15)))
+
+    def test_ci_cursor_does_not_starve_later_prs_when_audit_uses_more_reads(self):
+        backend = API()
+        backend.runs = [run(n) for n in range(1, 7)]
+        backend.jobs = {(n, 1): jobs(n == 6) for n in range(1, 7)}
+        backend.prs = [pull(n, head={**pull()["head"], "sha": f"{n:040x}"}) for n in range(20, 25)]
+        queried = set()
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "events.json"
+            for tick in range(3):
+                cursor = json.loads(path.read_text()).get("cursor", 0) if path.exists() else 0
+                with patch.object(GitHubAPI, "request", side_effect=backend.request) as reads:
+                    data = scan(LimitedAPI(), (), NOW, cursor=cursor)
+                    self.assertLessEqual(reads.call_count, 12)
+                    queried.update(call.args[1].split("head_sha=")[1].split("&")[0]
+                                   for call in reads.call_args_list if "head_sha=" in call.args[1])
+                self.assertTrue(data["deferred"])
+                report(path, data, lambda _: None, now=200 + tick)
+            self.assertEqual(queried, {f"{n:040x}" for n in range(20, 25)})
+
+    def test_remote_api_failure_is_not_treated_as_deferred_work(self):
+        backend = API()
+        backend.prs = [pull()]
+        def read(method, path, payload=None):
+            if "head_sha=" in path:
+                raise GitHubError("Synthetic HTTP 503")
+            return backend.request(method, path, payload)
+        with patch.object(GitHubAPI, "request", side_effect=read), self.assertRaises(GitHubError):
+            scan(LimitedAPI(), now=NOW)
+        with self.assertRaises(GitHubError):
+            scan(backend, now=NOW, cursor=-1)
+
     def test_dry_runs_and_stale_invocations_cannot_establish_health(self):
         api = API()
         api.jobs[(1, 1)] = jobs(False)
@@ -149,6 +211,7 @@ class DeliveryTests(unittest.TestCase):
 
     def test_delivery_failure_keeps_unacknowledged_ci_for_next_tick(self):
         sent = []
+        self.data.update(cursor=12, deferred=True)
         def deliver(text):
             if text.startswith("🟢"):
                 raise MonitorError("Synthetic delivery failure")
@@ -157,7 +220,9 @@ class DeliveryTests(unittest.TestCase):
             report(self.path, self.data, deliver, now=100)
         state = json.loads(self.path.read_text())
         self.assertIsNone(state["prs"]["12"]["ci"])
+        self.assertNotIn("cursor", state)
         self.assertEqual(report(self.path, self.data, sent.append, now=200), 1)
+        self.assertEqual(json.loads(self.path.read_text())["cursor"], 12)
         self.assertEqual(len(sent), 2)
 
     def test_message_budget_defers_remaining_events_without_losing_them(self):
@@ -183,6 +248,9 @@ class DeliveryTests(unittest.TestCase):
         bad["prs"][0]["ci_url"] = "https://private.example/token"
         with self.assertRaises(MonitorError):
             validate_snapshot(bad)
+        for fields in ({"cursor": -1}, {"cursor": True}, {"deferred": "true"}):
+            with self.assertRaises(MonitorError):
+                validate_snapshot({**self.data, **fields})
         self.path.write_text("{")
         sent = MagicMock()
         with self.assertRaises(MonitorError):

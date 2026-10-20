@@ -15,14 +15,20 @@ WORKFLOW_URL = f"https://github.com/{DOWNSTREAM}/actions/workflows/{WORKFLOW}"
 BOT_ID, DEPENDABOT_ID = 41898282, 49699333
 
 
+class ReadBudgetExceeded(GitHubError):
+    """Local scheduling limit; distinct from a remote API failure."""
+
+
 class LimitedAPI(GitHubAPI):
     def __init__(self, token=None):
         super().__init__(token)
         self.remaining = 12
 
     def request(self, method, path, payload=None):
-        if method != "GET" or self.remaining <= 0:
-            raise GitHubError("Read-only observer API budget exceeded")
+        if method != "GET":
+            raise GitHubError("Observer is read-only")
+        if self.remaining <= 0:
+            raise ReadBudgetExceeded("Observer API budget exhausted")
         self.remaining -= 1
         return super().request(method, path)
 
@@ -94,7 +100,7 @@ def managed(pr):
                 and re.fullmatch(r"dependabot/github_actions/[A-Za-z0-9_./-]+", branch) is not None))
 
 
-def pr_snapshot(api, pr):
+def pr_snapshot(api, pr, fetch_ci=True):
     number, head = pr.get("number"), pr.get("head", {}).get("sha")
     if (type(number) is not int or number < 1 or not isinstance(head, str)
             or not re.fullmatch(r"[0-9a-f]{40}", head) or pr.get("state") not in ("open", "closed")
@@ -102,7 +108,7 @@ def pr_snapshot(api, pr):
         raise GitHubError("Invalid managed PR metadata")
     result = {"number": number, "head": head, "state": pr["state"], "draft": pr["draft"],
               "url": f"https://github.com/{DOWNSTREAM}/pull/{number}", "ci": "pending", "ci_url": ""}
-    if pr["state"] != "open":
+    if pr["state"] != "open" or not fetch_ci:
         return result
     runs = items(api, f"{BASE}/actions/workflows/ci.yml/runs?head_sha={head}&per_page=100", "workflow_runs")
     runs = [r for r in runs if r.get("head_sha") == head and r.get("status") == "completed"
@@ -118,8 +124,12 @@ def pr_snapshot(api, pr):
     return result
 
 
-def scan(api, tracked=(), now=None):
+def scan(api, tracked=(), now=None, cursor=0):
     now = now or datetime.now(timezone.utc)
+    if type(cursor) is not int or cursor < 0:
+        raise GitHubError("Invalid PR cursor")
+    if any(type(n) is not int or n < 1 for n in tracked):
+        raise GitHubError("Invalid tracked PR number")
     repo = api.request("GET", BASE)
     branch = repo.get("default_branch")
     if not isinstance(branch, str) or not branch:
@@ -129,21 +139,35 @@ def scan(api, tracked=(), now=None):
     selected = {pr["number"]: pr for pr in open_prs if managed(pr)}
     if len(selected) > 5:
         raise GitHubError("Too many managed PRs; review the queue")
-    for number in tracked:
-        if type(number) is not int or number < 1:
-            raise GitHubError("Invalid tracked PR number")
-        if number not in selected:
-            pr = api.request("GET", f"{BASE}/pulls/{number}")
+    # The open-list metadata is already verified even if CI reads must wait.
+    # Rotate both closure and CI work so small remaining budgets cannot starve
+    # higher-numbered PRs. A cursor advances only past fully read observations.
+    observations = {n: pr_snapshot(api, pr, fetch_ci=False) for n, pr in selected.items()}
+    numbers = sorted(set(selected) | set(tracked))
+    queue = [n for n in numbers if n > cursor] + [n for n in numbers if n <= cursor]
+    deferred = False
+    for number in queue:
+        try:
+            pr = selected.get(number)
+            if pr is None:
+                pr = api.request("GET", f"{BASE}/pulls/{number}")
             if managed(pr):
-                selected[number] = pr
-    return {"audit": audit, "prs": [pr_snapshot(api, pr) for _, pr in sorted(selected.items())]}
+                observations[number] = pr_snapshot(api, pr, fetch_ci=False)
+                observations[number] = pr_snapshot(api, pr)
+        except ReadBudgetExceeded:
+            deferred = True
+            break
+        cursor = number
+    return {"audit": audit, "prs": [pr for _, pr in sorted(observations.items())],
+            "cursor": cursor, "deferred": deferred}
 
 
 def main():
     import sys
-    tracked = json.load(sys.stdin).get("tracked", [])
+    request = json.load(sys.stdin)
+    tracked = request.get("tracked", [])
     try:
-        result = scan(LimitedAPI(os.environ.get("GH_TOKEN")), tracked)
+        result = scan(LimitedAPI(os.environ.get("GH_TOKEN")), tracked, cursor=request.get("cursor", 0))
     except (GitHubError, ValueError, KeyError, TypeError, AttributeError):
         result = {"audit": {"status": "UNKNOWN", "reason": "api_unavailable", "url": WORKFLOW_URL}, "prs": []}
     print(json.dumps(result))

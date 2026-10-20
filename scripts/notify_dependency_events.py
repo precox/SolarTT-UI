@@ -17,14 +17,14 @@ WORKFLOW_URL = f"https://github.com/{DOWNSTREAM}/actions/workflows/dependency-ma
 FAILURE = {"audit": {"status": "UNKNOWN", "reason": "observer_failed", "url": WORKFLOW_URL}, "prs": []}
 
 
-def snapshot(github, tracked):
+def snapshot(github, tracked, cursor=0):
     env = dict(os.environ)
     env.pop("GH_TOKEN", None)
     if github:
         env["GH_TOKEN"] = github
     try:
         child = subprocess.run([sys.executable, "-B", str(Path(__file__).with_name("scan_dependency_events.py"))],
-                               input=json.dumps({"tracked": tracked}).encode(), env=env,
+                               input=json.dumps({"tracked": tracked, "cursor": cursor}).encode(), env=env,
                                capture_output=True, timeout=100)
         if child.returncode:
             return FAILURE
@@ -35,6 +35,9 @@ def snapshot(github, tracked):
 
 def validate_snapshot(data):
     audit, prs = data["audit"], data["prs"]
+    if (type(data.get("cursor", 0)) is not int or data.get("cursor", 0) < 0
+            or type(data.get("deferred", False)) is not bool):
+        raise MonitorError("Invalid observer progress")
     if audit.get("status") not in ("OK", "CRITICAL", "UNKNOWN") or not isinstance(prs, list) or len(prs) > 100:
         raise MonitorError("Invalid observer response")
     url = audit.get("url", "")
@@ -58,7 +61,8 @@ def load(path, now):
         return {"version": 1, "audit": None, "prs": {}}
     try:
         state = json.loads(path.read_text())
-        if state["version"] != 1 or not isinstance(state["prs"], dict) or len(state["prs"]) > 1000:
+        if (state["version"] != 1 or not isinstance(state["prs"], dict) or len(state["prs"]) > 1000
+                or type(state.get("cursor", 0)) is not int or state.get("cursor", 0) < 0):
             raise ValueError()
         for entry in ([state["audit"]] if state["audit"] else []) + list(state["prs"].values()):
             if not isinstance(entry, dict) or type(entry.get("notified_at")) is not int or not 0 <= entry["notified_at"] <= now + 300:
@@ -120,6 +124,8 @@ def report(path, data, deliver, now=None):
     state["prs"] = {k: v for k, v in state["prs"].items()
                     if v["state"] == "open" or now - v["notified_at"] < 30 * 86400}
     state["last_checked_at"] = now
+    if "cursor" in data:
+        state["cursor"] = data["cursor"]
     save_state(path, state)
     return sent
 
@@ -143,9 +149,10 @@ def main():
         now = int(time.time())
         state = load(folder / "events.json", now)
         tracked = [int(n) for n, entry in state["prs"].items() if entry["state"] == "open"]
-        data = snapshot(github, tracked)
+        data = snapshot(github, tracked, state.get("cursor", 0))
         count = report(folder / "events.json", data, deliver, now)
-        print(json.dumps({"audit": data["audit"]["status"], "notifications_sent": count}))
+        print(json.dumps({"audit": data["audit"]["status"], "notifications_sent": count,
+                          "prs_deferred": data.get("deferred", False)}))
         raise SystemExit(0 if data["audit"]["status"] == "OK" else 3)
 
 

@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from dependency_policy import (ManualReview, REGISTRY, SHA, choose_target, findings,
-                               fingerprint, index, review_target, validate_patch)
+                               fingerprint, index, review_target, validate_patch, version)
 from security_check import PRIVATE, tool
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -84,6 +84,7 @@ def prepare(root, report, code, base, registry=index, audit_after=None):
         if len(identities) != 1:
             raise ManualReview("multiple_vulnerable_package_identities")
         name, current = next(iter(identities))
+        version(current, stable=True)
         locked = [p for p in tomllib.loads(old_lock)["package"] if p["name"] == name and p["version"] == current]
         if len(locked) != 1 or locked[0].get("source") != REGISTRY:
             raise ManualReview("unsupported_dependency_source_or_identity")
