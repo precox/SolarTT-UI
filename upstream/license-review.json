@@ -1,5 +1,5 @@
 {
-  "review_date": "2026-10-17",
+  "review_date": "2026-10-20",
   "scope": "Engineering redistribution review for first public alpha; entire resolved set, including build/test/other-platform dependencies.",
   "record": "docs/dependency-redistribution-review.md",
   "native_components": "Preserve all nested terms regardless of outer crate metadata; see record and NOTICE. No dependency relicensing.",
@@ -1833,7 +1833,7 @@
     },
     {
       "name": "rustls-webpki",
-      "version": "0.103.15",
+      "version": "0.103.16",
       "declared_license": "ISC",
       "selected_license": "ISC",
       "notices_sha256": {
