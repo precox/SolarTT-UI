@@ -30,7 +30,9 @@ Send only status and allowlisted public Actions evidence. Never send profiles,
 keys, databases, HTTP error bodies or diagnostic logs. Telegram acceptance is
 checked, but only the owner can confirm actual receipt/readability in the chat.
 This service does not forward all VPN events or new-release Issues to Telegram.
-Existing VPN event delivery continues through its current sender.
+The separate [dependency event observer](dependency-maintenance.md#telegram-delivery-on-the-existing-monitor-host)
+can deliver audit/PR/CI events after its own deployment and acceptance. Existing
+VPN event delivery continues through its current sender.
 
 The existing bot can be used for outgoing `sendMessage` requests. This service
 does not call `getUpdates`, register a webhook or replace the bot's running

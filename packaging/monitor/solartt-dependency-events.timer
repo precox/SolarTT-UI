@@ -1,0 +1,11 @@
+[Unit]
+Description=Quarter-hourly SolarTT dependency notifications
+
+[Timer]
+OnCalendar=*-*-* *:07,22,37,52:00 UTC
+RandomizedDelaySec=60
+AccuracySec=1min
+Persistent=yes
+
+[Install]
+WantedBy=timers.target
