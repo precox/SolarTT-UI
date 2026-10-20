@@ -9,7 +9,7 @@ import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
 
-from dependency_policy import (ManualReview, REGISTRY, choose_target, findings,
+from dependency_policy import (ManualReview, REGISTRY, SHA, choose_target, findings,
                                fingerprint, index, review_target, validate_patch)
 from security_check import PRIVATE, tool
 
@@ -24,7 +24,20 @@ def require_runner():
         raise RuntimeError("Dependency preparation requires a disposable GitHub Linux runner")
 
 
+def database_snapshot():
+    """Identify a clean on-disk database, never infer provenance from an audit exit."""
+    args = ["git", "-C", str(PRIVATE / "advisory-db")]
+    commit = subprocess.check_output(args + ["rev-parse", "--verify", "HEAD"],
+                                     stderr=subprocess.PIPE, text=True).strip()
+    dirty = subprocess.check_output(args + ["status", "--porcelain", "--untracked-files=all",
+                                           "--ignore-submodules=none"], stderr=subprocess.PIPE)
+    if not SHA.fullmatch(commit) or dirty:
+        raise RuntimeError("Advisory database must be a clean Git snapshot")
+    return commit
+
+
 def audit(root, fetch=True):
+    before = database_snapshot() if not fetch else None
     args = [tool("cargo-audit"), "audit", "--json", "--file", str(root / "Cargo.lock"),
             "--db", str(PRIVATE / "advisory-db")]
     if not fetch:
@@ -32,6 +45,16 @@ def audit(root, fetch=True):
     process = subprocess.run(args, cwd=root, capture_output=True, timeout=180)
     try:
         report = json.loads(process.stdout)
+        if not fetch:
+            after = database_snapshot()
+            if after != before:
+                raise ValueError("Advisory database changed during audit")
+            # cargo-audit 0.22.2 opens the files directly with --no-fetch and
+            # omits Git metadata. Recover only its explicitly null commit from
+            # the verified clean repository, checked on both sides of the audit.
+            database = report.get("database")
+            if isinstance(database, dict) and "last-commit" in database and database["last-commit"] is None:
+                database["last-commit"] = before
         findings(report, process.returncode)
     except (ValueError, TypeError):
         raise RuntimeError("RustSec audit failed; no healthy result or PR is inferred") from None

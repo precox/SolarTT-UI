@@ -3,6 +3,7 @@ import copy
 import hashlib
 import io
 import json
+import subprocess
 import tarfile
 import tempfile
 import unittest
@@ -12,7 +13,7 @@ from unittest.mock import patch
 from dependency_policy import (ManualReview, choose_target, findings, fingerprint,
                                matches, review_target, validate_patch)
 from github_api import DOWNSTREAM, GitHubError
-from maintain_dependencies import prepare
+from maintain_dependencies import audit, database_snapshot, prepare
 from publish_dependency_update import publish, validate
 
 BASE = "a" * 40
@@ -72,6 +73,31 @@ class PolicyTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 findings(data, code)
         self.assertEqual(findings(audit_report([]), 0)[1], [])
+
+    def test_no_fetch_audit_requires_clean_unchanged_database_provenance(self):
+        response = audit_report([])
+        response["database"]["last-commit"] = None
+        with patch("maintain_dependencies.tool", return_value="/verified/cargo-audit"), \
+                patch("maintain_dependencies.subprocess.run") as run, \
+                patch("maintain_dependencies.database_snapshot", side_effect=["e" * 40, "e" * 40]):
+            run.return_value = subprocess.CompletedProcess([], 0, json.dumps(response).encode())
+            report, code = audit(self.root, fetch=False)
+            self.assertEqual(findings(report, code), ("e" * 40, []))
+            self.assertIn("--no-fetch", run.call_args.args[0])
+        for commits, payload, code in [(["e" * 40, "f" * 40], response, 0),
+                                        (["e" * 40, "e" * 40], response, 2),
+                                        (["e" * 40, "e" * 40], {"database": {}}, 0)]:
+            with patch("maintain_dependencies.tool", return_value="/verified/cargo-audit"), \
+                    patch("maintain_dependencies.subprocess.run", return_value=subprocess.CompletedProcess(
+                        [], code, json.dumps(payload).encode())), \
+                    patch("maintain_dependencies.database_snapshot", side_effect=commits), \
+                    self.assertRaises(RuntimeError):
+                audit(self.root, fetch=False)
+        with patch("maintain_dependencies.subprocess.check_output", side_effect=["e" * 40, b"?? injected.md\n"]), \
+                self.assertRaises(RuntimeError):
+            database_snapshot()
+        with patch("maintain_dependencies.subprocess.check_output", side_effect=["e" * 40, b""]):
+            self.assertEqual(database_snapshot(), "e" * 40)
 
     def test_healthy_and_complex_proposals_make_no_cargo_or_github_calls(self):
         healthy = prepare(self.root, audit_report([]), 0, BASE)
