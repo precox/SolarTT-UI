@@ -20,6 +20,8 @@ This page covers installation and everyday use. For development and build
 instructions, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 **Current release: [v0.1.0-alpha.5](https://github.com/precox/SolarTT-UI/releases/tag/v0.1.0-alpha.5).**
+Development is preparing [alpha.6](docs/releases/v0.1.0-alpha.6.md); that candidate
+is not published. Download instructions below still refer to the public alpha.5.
 This alpha is intended for an operator-supervised single-node pilot. There is
 no stable release or guaranteed concurrent-user capacity yet.
 
