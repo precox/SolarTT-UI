@@ -27,6 +27,11 @@ Agent/panel behavior changes also require scoped owner acceptance using the
 [prepared kit and record](manual-acceptance.md). CI kit creation leaves human
 acceptance unperformed; it does not provision a persistent test environment.
 
+The [alpha.6 scoped owner record](alpha6-acceptance-2026-10-21.md) identifies the
+tested package/runtime, Android network switching, long original TCP/UDP and
+scoped revoke results, including the corrected test-frontend connection cap.
+It does not establish every stable field gate or authorize a production upgrade.
+
 ## Stable: existing engineering evidence and remaining work
 
 - [ ] Official client compatibility: selected CLI and Android versions recorded.
