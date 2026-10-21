@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.0-alpha.6 — release candidate (not published)
 
 - Fix managed H2 listener timeout closing existing TCP/UDP pipes while waiting
   for a new CONNECT. Empty transports still expire; quota, expiry and revocation
@@ -8,6 +8,18 @@
 - Add accelerated real TLS/H2 regressions for active A/B flows, scoped revocation
   after the listener deadline and idle/completed-request cleanup. CI reconstructs
   the previous implementation to prove failure before the fix.
+- Update rustls-webpki from 0.103.15 to 0.103.16 for RUSTSEC-2026-0382;
+  retain the exact dependency notice review.
+- Add stable TrustTunnel release discovery, daily RustSec auditing, conservative
+  dependency proposal PRs and optional external notification/health monitors.
+  Discovery and proposals do not install packages or replace a running agent.
+- Require upgrade/guarded recovery from the published alpha.5 package alongside
+  the historical alpha.1 pilot; prepare a separate human-acceptance kit.
+- Update pinned GitHub Actions and add README mobile previews with synthetic data.
+
+Candidate CI, scoped human acceptance and tagged publication remain separate
+gates. This version is not a published release or an authorization to upgrade
+an existing node. See [candidate notes](docs/releases/v0.1.0-alpha.6.md).
 
 ## 0.1.0-alpha.5 — 2026-10-17 (current public alpha)
 
