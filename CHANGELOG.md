@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0-alpha.6 — release candidate (not published)
+## 0.1.0-alpha.6 — 2026-10-21
 
 - Fix managed H2 listener timeout closing existing TCP/UDP pipes while waiting
   for a new CONNECT. Empty transports still expire; quota, expiry and revocation
@@ -16,12 +16,15 @@
 - Require upgrade/guarded recovery from the published alpha.5 package alongside
   the historical alpha.1 pilot; prepare a separate human-acceptance kit.
 - Update pinned GitHub Actions and add README mobile previews with synthetic data.
+- Record scoped Android Wi-Fi/mobile recovery, 979.3-second original TCP/UDP
+  forwarding and isolated revocation acceptance. The temporary test frontend's
+  initial connection cap was corrected and recorded; no production rollout ran.
 
-Candidate CI, scoped human acceptance and tagged publication remain separate
-gates. This version is not a published release or an authorization to upgrade
-an existing node. See [candidate notes](docs/releases/v0.1.0-alpha.6.md).
+Tagged publication and production rollout remain separate operations. Check
+GitHub Releases for available assets; this source entry alone does not authorize
+upgrading an existing node. See [release notes](docs/releases/v0.1.0-alpha.6.md).
 
-## 0.1.0-alpha.5 — 2026-10-17 (current public alpha)
+## 0.1.0-alpha.5 — 2026-10-17
 
 - Fix a managed H2 download stall when a traffic-accounting lease splits a
   response buffer after the sink has consumed all requested flow-control capacity.

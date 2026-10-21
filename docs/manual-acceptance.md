@@ -1,12 +1,15 @@
 # Preparing isolated human acceptance
 
-Status: **prepared inputs, no persistent environment provisioned or deployed**.
-The CI kit does not claim Android, real-network, sustained-load or owner acceptance.
-Riga and working-user accounts are outside this procedure.
+The CI kit provides **prepared inputs**; it does not perform Android,
+real-network, sustained-load or owner acceptance. The exact alpha.6 candidate
+has a separate [completed scoped owner record](alpha6-acceptance-2026-10-21.md).
+Its temporary, explicitly authorized process cohost was removed after testing;
+no persistent human-acceptance environment is left running.
 
-Persistent environment deployment is deferred by the owner pending an available
-host. Do not provision a VM or place the candidate on another working service
-from this preparation alone. The CI kit and automated upgrade pilots continue.
+Future environments require their own applicable authorization. Do not provision
+a VM, deploy on a working service or mutate working-user accounts merely from
+this document or a kit. A shared operator node requires a reviewed cohosting
+plan with separate state, ports, certificates and bounded cleanup.
 
 ## When this gate applies
 

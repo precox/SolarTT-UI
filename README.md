@@ -5,7 +5,7 @@
 # SolarTT-UI
 
 <p align="center">
-  <a href="https://github.com/precox/SolarTT-UI/releases/tag/v0.1.0-alpha.5"><img src="https://img.shields.io/badge/release-v0.1.0--alpha.5-ffbc72" alt="Release v0.1.0-alpha.5"></a>
+  <a href="https://github.com/precox/SolarTT-UI/releases"><img src="https://img.shields.io/github/v/release/precox/SolarTT-UI?include_prereleases&amp;color=ffbc72" alt="Latest published alpha release"></a>
   <a href="https://github.com/precox/SolarTT-UI/actions/workflows/ci.yml"><img src="https://github.com/precox/SolarTT-UI/actions/workflows/ci.yml/badge.svg?branch=main" alt="Build, test and security CI"></a>
   <a href="https://github.com/precox/SolarTT-UI/actions/workflows/watch-trusttunnel.yml"><img src="https://github.com/precox/SolarTT-UI/actions/workflows/watch-trusttunnel.yml/badge.svg?branch=main" alt="TrustTunnel release watcher"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="Apache-2.0 license"></a>
@@ -19,9 +19,9 @@ independent community project, not an official TrustTunnel product.
 This page covers installation and everyday use. For development and build
 instructions, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
-**Current release: [v0.1.0-alpha.5](https://github.com/precox/SolarTT-UI/releases/tag/v0.1.0-alpha.5).**
-Development is preparing [alpha.6](docs/releases/v0.1.0-alpha.6.md); that candidate
-is not published. Download instructions below still refer to the public alpha.5.
+**Version documented: [v0.1.0-alpha.6](docs/releases/v0.1.0-alpha.6.md).**
+Check [GitHub Releases](https://github.com/precox/SolarTT-UI/releases) for published
+packages matching this version; a source branch alone is not a binary release.
 This alpha is intended for an operator-supervised single-node pilot. There is
 no stable release or guaranteed concurrent-user capacity yet.
 
@@ -51,13 +51,13 @@ No production users, credentials or traffic are shown.</p>
 ## Download
 
 Get the matching files from the
-[alpha release](https://github.com/precox/SolarTT-UI/releases/tag/v0.1.0-alpha.5):
+[alpha.6 release](https://github.com/precox/SolarTT-UI/releases/tag/v0.1.0-alpha.6):
 
 | Target | File | Use |
 | --- | --- | --- |
-| Ubuntu 24.04, x86_64, systemd | `solartt-ui_0.1.0-alpha.5_amd64.deb` | Recommended installation; includes service account setup |
-| Linux x86_64 binary payload | `solartt-ui-0.1.0-alpha.5-linux-x86_64.tar.gz` | Manual deployment; does not set up service accounts |
-| Source code | `solartt-ui-0.1.0-alpha.5-source.tar.gz` | Building and inspecting the release |
+| Ubuntu 24.04, x86_64, systemd | `solartt-ui_0.1.0-alpha.6_amd64.deb` | Recommended installation; includes service account setup |
+| Linux x86_64 binary payload | `solartt-ui-0.1.0-alpha.6-linux-x86_64.tar.gz` | Manual deployment; does not set up service accounts |
+| Source code | `solartt-ui-0.1.0-alpha.6-source.tar.gz` | Building and inspecting the release |
 
 The Ubuntu package is the verified deployment target; the binary archive does
 not imply support for other distributions. Download `SHA256SUMS` alongside your
@@ -72,7 +72,7 @@ On the target server, use an empty directory for the downloaded `.deb` and
 ```sh
 sha256sum --ignore-missing -c SHA256SUMS
 sudo apt-get update
-sudo apt-get install ./solartt-ui_0.1.0-alpha.5_amd64.deb
+sudo apt-get install ./solartt-ui_0.1.0-alpha.6_amd64.deb
 ```
 
 Continue only if the package checksum passes. No Rust, compiler, Node or Chromium
@@ -188,8 +188,11 @@ follow the upgrade procedure before replacing an installed version. Older
 binaries may not understand newer database or device-policy formats; do not
 assume a package downgrade is a safe rollback.
 
-Alpha.5 fixes a managed HTTP/2 download stall across traffic-accounting leases.
-See the [alpha.5 release notes](docs/releases/v0.1.0-alpha.5.md). Alpha.1 and
+Alpha.6 preserves existing managed TCP/UDP streams across the listener deadline
+and updates rustls-webpki. See the [alpha.6 release notes](docs/releases/v0.1.0-alpha.6.md)
+and [scoped Android/long-flow acceptance](docs/alpha6-acceptance-2026-10-21.md).
+Alpha.5 fixed a managed HTTP/2 download stall across traffic-accounting leases.
+Alpha.1 and
 alpha.2 were internal builds; alpha.3 was withdrawn after GitHub changed its
 uploaded package filename, corrected in [alpha.4](docs/releases/v0.1.0-alpha.4.md).
 
@@ -213,13 +216,15 @@ be started manually. It separates these checks:
 | `portable` | Formatting, linting, policy/panel tests and release-tool checks |
 | `native` | Managed agent, browser, TLS/H2 TCP/UDP, proxy and package lifecycle |
 | `legacy` | Patched upstream regression tests |
-| `pilot` | Upgrade, rollback and guarded recovery on a disposable Ubuntu VM |
+| `pilot` | Separate disposable Ubuntu VM legs for alpha.1 and published alpha.5 upgrade/guarded recovery |
 | `minimal` | Runtime package in minimal Ubuntu without build tools |
 
 Publication runs for alpha tags after all six prerequisite jobs pass. These
-checks are separate from real-client and sustained-load acceptance. Recorded
-Android/network coverage, operational certificate renewal, off-host recovery and
-representative 24–72 hour observation remain work for stable. See
+checks are separate from real-client and sustained-load acceptance. A
+[scoped alpha.6 owner check](docs/alpha6-acceptance-2026-10-21.md) covers Android
+network switching, long TCP/UDP streams and revocation. Broader client coverage,
+operational certificate renewal, off-host recovery and supported capacity remain
+work for stable. See
 [release gates](docs/release-gates.md) and [verification history](docs/verification.md).
 
 ### TrustTunnel release watcher
