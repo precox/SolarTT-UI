@@ -70,6 +70,9 @@ jobs:
             native-ubuntu24-rust1.95-
       - name: Prove managed download regression before and after the fix
         run: python3 scripts/check_managed_backpressure.py
+      - name: Prove active-stream listener timeout before and after the fix
+        run: python3 scripts/check_managed_listener_timeout.py
+      - run: cargo clippy --locked -p solartt-agent --all-targets -- -D warnings
       - run: cargo test --locked -p solartt-agent -- --test-threads=1
       - run: cargo build --locked --release -p solartt-agent -p solartt-panel -p solartt-admin
       - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4

@@ -403,6 +403,7 @@ new file mode 100644
 +    }
 +}
 diff --git a/lib/src/tunnel.rs b/lib/src/tunnel.rs
+index a6c2aaa..5bbc8f4 100644
 --- a/lib/src/tunnel.rs
 +++ b/lib/src/tunnel.rs
 @@ -36,6 +36,7 @@
@@ -458,7 +459,20 @@ diff --git a/lib/src/tunnel.rs b/lib/src/tunnel.rs
      }
  
      fn resolve_username(
-@@ -155,6 +169,36 @@
+@@ -150,11 +164,49 @@
+                     return Err(e);
+                 }
+                 Err(_) => {
++                    if self.context.managed_policy.is_some() {
++                        while self.request_tasks.try_join_next().is_some() {}
++                        // Existing pipes have their own idle timeouts. Waiting
++                        // for a new CONNECT must not terminate those pipes.
++                        if !self.request_tasks.is_empty() {
++                            continue;
++                        }
++                    }
+                     log_id!(trace, self.id, "Tunnel listen timeout");
+                     return Err(io::Error::from(ErrorKind::TimedOut));
                  }
              };
  
@@ -495,7 +509,7 @@ diff --git a/lib/src/tunnel.rs b/lib/src/tunnel.rs
              let context = self.context.clone();
              let forwarder = self.forwarder.clone();
              let tls_domain = self.downstream.tls_domain().to_string();
-@@ -224,7 +268,7 @@
+@@ -224,7 +276,7 @@
                  }
              }
  
@@ -504,7 +518,7 @@ diff --git a/lib/src/tunnel.rs b/lib/src/tunnel.rs
                  fn report_fatal_if_too_many_open_files(
                      context: &Arc<core::Context>,
                      e: &ConnectionError,
-@@ -316,6 +360,7 @@
+@@ -316,6 +368,7 @@
                              forwarder_auth,
                              tls_domain,
                              update_metrics,
@@ -512,7 +526,7 @@ diff --git a/lib/src/tunnel.rs b/lib/src/tunnel.rs
                          )
                          .await
                          {
-@@ -335,6 +380,7 @@
+@@ -335,6 +388,7 @@
                              forwarder_auth,
                              tls_domain,
                              update_metrics,
@@ -520,7 +534,7 @@ diff --git a/lib/src/tunnel.rs b/lib/src/tunnel.rs
                          )
                          .await
                          {
-@@ -349,7 +395,12 @@
+@@ -349,7 +403,12 @@
                          log_id!(debug, request_id, "Failed to complete request: {}", e);
                      }
                  }
@@ -534,7 +548,7 @@ diff --git a/lib/src/tunnel.rs b/lib/src/tunnel.rs
          }
      }
  
-@@ -360,6 +411,7 @@
+@@ -360,6 +419,7 @@
          forwarder_auth: Option<authentication::Source<'static>>,
          tls_domain: String,
          update_metrics: F,
@@ -542,7 +556,7 @@ diff --git a/lib/src/tunnel.rs b/lib/src/tunnel.rs
      ) -> Result<
          (),
          (
-@@ -445,6 +497,7 @@
+@@ -445,6 +505,7 @@
              update_metrics,
          );
  
@@ -550,7 +564,7 @@ diff --git a/lib/src/tunnel.rs b/lib/src/tunnel.rs
          log_id!(trace, request_id, "TCP connect: pipe exchange started");
          match pipe
              .exchange(context.settings.tcp_connections_timeout)
-@@ -468,6 +521,7 @@
+@@ -468,6 +529,7 @@
          forwarder_auth: Option<authentication::Source<'static>>,
          tls_domain: String,
          update_metrics: F,
@@ -558,7 +572,7 @@ diff --git a/lib/src/tunnel.rs b/lib/src/tunnel.rs
      ) -> Result<
          (),
          (
-@@ -527,12 +581,14 @@
+@@ -527,12 +589,14 @@
                      }
                  };
  

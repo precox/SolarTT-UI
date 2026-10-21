@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Fix managed H2 listener timeout closing existing TCP/UDP pipes while waiting
+  for a new CONNECT. Empty transports still expire; quota, expiry and revocation
+  retain immediate session cleanup. Production configuration defaults are unchanged.
+- Add accelerated real TLS/H2 regressions for active A/B flows, scoped revocation
+  after the listener deadline and idle/completed-request cleanup. CI reconstructs
+  the previous implementation to prove failure before the fix.
+
 ## 0.1.0-alpha.5 — 2026-10-17 (current public alpha)
 
 - Fix a managed H2 download stall when a traffic-accounting lease splits a

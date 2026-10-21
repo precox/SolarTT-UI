@@ -178,6 +178,15 @@ impl Fixture {
         Self::with_denied(Default::default()).await
     }
     async fn with_denied(denied_addresses: std::collections::HashSet<std::net::IpAddr>) -> Self {
+        Self::with_options(denied_addresses, 600).await
+    }
+    async fn with_listener_timeout(seconds: u64) -> Self {
+        Self::with_options(Default::default(), seconds).await
+    }
+    async fn with_options(
+        denied_addresses: std::collections::HashSet<std::net::IpAddr>,
+        listener_timeout: u64,
+    ) -> Self {
         let _ = rustls::crypto::ring::default_provider().install_default();
         let dir = tempfile::Builder::new()
             .permissions({
@@ -201,6 +210,7 @@ allow_private_network_connections = true
 ping_enable = false
 speedtest_enable = false
 auth_failure_status_code = 404
+client_listener_timeout_secs = {listener_timeout}
 [listen_protocols.http2]
 max_concurrent_streams = 128
 [forward_protocol]
@@ -303,6 +313,79 @@ async fn h2_one_way_download_crosses_lease_boundary() {
             .unwrap();
         assert_eq!(view.confirmed_bytes, expected.len() as u64 + 1);
         assert_eq!(view.status, "active");
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn active_tcp_udp_survive_listener_timeout_and_revoke_remains_scoped() {
+    for limit in [None, Some(64 * 1024)] {
+        let fixture = Fixture::with_listener_timeout(1).await;
+        let (_, credential_a, basic_a) = account(&fixture.engine, "A", limit).await;
+        let (_, _, basic_b) = account(&fixture.engine, "B", limit).await;
+        let mut a = fixture.client().await;
+        let b = fixture.client().await;
+        let (status, mut a_tx, mut a_rx) = a.request(&fixture.tcp.to_string(), &basic_a).await;
+        assert_eq!(status, 200);
+        let (status, mut a_udp_tx, mut a_udp_rx) = a.request("_udp2", &basic_a).await;
+        assert_eq!(status, 200);
+        let (status, mut b_tx, mut b_rx) = b.request(&fixture.tcp.to_string(), &basic_b).await;
+        assert_eq!(status, 200);
+        let (status, mut b_udp_tx, mut b_udp_rx) = b.request("_udp2", &basic_b).await;
+        assert_eq!(status, 200);
+        // No new CONNECT, health request, reconnect or TLS keepalive workaround.
+        for _ in 0..8 {
+            tokio::time::sleep(Duration::from_millis(350)).await;
+            for (tx, rx, udp_tx, udp_rx) in [
+                (&mut a_tx, &mut a_rx, &mut a_udp_tx, &mut a_udp_rx),
+                (&mut b_tx, &mut b_rx, &mut b_udp_tx, &mut b_udp_rx),
+            ] {
+                tx.send_data(Bytes::from_static(b"alive"), false).unwrap();
+                assert_eq!(payload(rx, 5).await, b"alive");
+                udp_tx
+                    .send_data(udp_frame(fixture.udp, b"alive"), false)
+                    .unwrap();
+                assert_eq!(&payload(udp_rx, 45).await[40..], b"alive");
+            }
+        }
+        let (_, complete) = fixture
+            .engine
+            .apply(Request {
+                request_id: "revoke-after-listener-timeout".into(),
+                expected_revision: Some(fixture.engine.revision()),
+                command: Command::RevokeCredential {
+                    credential_id: credential_a,
+                },
+            })
+            .await
+            .unwrap();
+        assert!(complete);
+        a.closed().await;
+        for _ in 0..4 {
+            tokio::time::sleep(Duration::from_millis(350)).await;
+            b_tx.send_data(Bytes::from_static(b"still alive"), false)
+                .unwrap();
+            assert_eq!(payload(&mut b_rx, 11).await, b"still alive");
+            b_udp_tx
+                .send_data(udp_frame(fixture.udp, b"still alive"), false)
+                .unwrap();
+            assert_eq!(&payload(&mut b_udp_rx, 51).await[40..], b"still alive");
+        }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn listener_timeout_closes_empty_and_completed_request_transports() {
+    for health_request in [false, true] {
+        let fixture = Fixture::with_listener_timeout(1).await;
+        let (_, _, basic) = account(&fixture.engine, "Idle", None).await;
+        let mut client = fixture.client().await;
+        if health_request {
+            let (status, tx, rx) = client.request("_check", &basic).await;
+            assert_eq!(status, 200);
+            drop((tx, rx));
+        }
+        client.closed().await;
+        assert_eq!(fixture.engine.users()[0].active_sessions, 0);
     }
 }
 
