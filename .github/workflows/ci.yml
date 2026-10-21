@@ -99,7 +99,7 @@ jobs:
       - name: Service diagnostics on failure
         if: failure()
         run: sudo journalctl -u solartt-agent.service -u solartt-panel.service --no-pager -n 100
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: solartt-linux-x86_64-development
           path: dist/
@@ -164,12 +164,12 @@ jobs:
       - name: Pilot service diagnostics on failure
         if: failure()
         run: sudo journalctl -u solartt-agent.service -u solartt-panel.service --no-pager -n 100
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ matrix.baseline == 'alpha1' && 'solartt-isolated-upgrade-pilot' || 'solartt-alpha5-upgrade-pilot' }}
           path: ${{ matrix.baseline == 'alpha1' && 'dist/' || 'dist/alpha5-upgrade-report.json' }}
           retention-days: 7
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: matrix.baseline == 'alpha5'
         with:
           name: solartt-manual-acceptance-kit
@@ -218,7 +218,7 @@ jobs:
         run: |
           docker run --rm --network none --mount type=bind,src="$PWD/dist/minimal",dst=/report solartt-minimal-runtime
           docker image inspect solartt-minimal-runtime --format '{{.Id}}' > dist/minimal/runtime-image-id.txt
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: solartt-minimal-runtime
           path: dist/minimal/
