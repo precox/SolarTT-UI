@@ -49,6 +49,14 @@ class BaselineTests(unittest.TestCase):
     def test_verified_public_package_selected(self):
         self.assertEqual(verify(self.root, self.pin), self.root / "fixture.deb")
 
+    def test_alpha6_identity_is_independent_of_alpha5(self):
+        self.metadata['version'] = '0.1.0-alpha.6'
+        self.prepare()
+        with self.assertRaises(ValueError):
+            verify(self.root, self.pin)
+        self.pin['version'] = '0.1.0-alpha.6'
+        self.assertEqual(verify(self.root, self.pin), self.root / 'fixture.deb')
+
     def test_changed_package_or_metadata_or_manifest_is_rejected(self):
         for name in self.pin["assets_sha256"]:
             original = (self.root / name).read_bytes()

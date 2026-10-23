@@ -1,0 +1,34 @@
+{
+  "version": "0.1.0",
+  "decision": "accepted_with_documented_limitations",
+  "owner_accepted_limitations": true,
+  "owner_decision_date": "2026-10-23",
+  "runtime_basis": {
+    "tag": "v0.1.0-alpha.6",
+    "source_commit": "aecedf0bd5407e11968cc710d56779b9ce35f7ce",
+    "manual_record": "docs/alpha6-acceptance-2026-10-21.md",
+    "candidate_delta": "Version metadata, release tooling and documentation only; no managed agent/panel runtime logic or dependency changes"
+  },
+  "network_reachability_guarantee": false,
+  "advertised_client_capacity": false,
+  "deferred_checks": {
+    "real_certificate_replacement": "Staging ACME renewal passed; actual future public certificate replacement and runtime reload remain unverified.",
+    "independent_full_stack_restore": "Matching-key local database restore passed; complete stack recovery after loss of the host remains unverified. Backups stayed on the operator host by owner choice.",
+    "capacity_benchmark": "24-hour ordinary workload was observed. No concurrent-user guarantee, supported maximum throughput, UDP-loss envelope or disk-sync capacity benchmark is advertised."
+  },
+  "observation": {
+    "status": "complete",
+    "duration_hours": 24,
+    "samples": 1373,
+    "local_health_checks": 138,
+    "local_health_failures": 0,
+    "collection_errors": 0,
+    "agent_restarts": 0,
+    "panel_restarts": 0,
+    "scope": "Local process, UI and TLS/H2 checks on the operator node. Client payload was not continuous for all 24 hours; direct client reachability is excluded from the release decision."
+  },
+  "local_restore": "PASS",
+  "acme_staging_dry_run": "PASS",
+  "supported_runtime": "Ubuntu 24.04, Linux x86_64, systemd",
+  "public_record": "docs/stable-acceptance-2026-10-23.md"
+}

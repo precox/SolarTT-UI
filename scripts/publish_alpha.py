@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publish the exact successful tag build as a GitHub prerelease (CI only)."""
+"""Publish an exact successful alpha/stable tag build (GitHub CI only)."""
 import hashlib
 import json
 import os
@@ -15,13 +15,47 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def release_is_prerelease(tag):
+    number = r'(?:0|[1-9][0-9]*)'
+    if not re.fullmatch(rf'v{number}\.{number}\.{number}(?:-alpha\.{number})?', tag):
+        raise ValueError('Expected a canonical stable or alpha release tag')
+    return '-alpha.' in tag
+
+
 def validate_identity(tag, commit, metadata, version):
-    if not re.fullmatch(r'v\d+\.\d+\.\d+-alpha\.\d+', tag):
-        raise ValueError('Only explicit alpha tags can be published by this workflow')
+    release_is_prerelease(tag)
     if tag != 'v' + version or metadata['version'] != version or metadata['source_commit'] != commit:
         raise ValueError('Tag/source/build identity mismatch')
     if not re.fullmatch(r'[0-9a-f]{40}', commit):
         raise ValueError('Invalid source identity')
+
+
+def validate_stable_acceptance(tag, record):
+    if release_is_prerelease(tag):
+        return
+    if not isinstance(record, dict):
+        raise ValueError('Stable acceptance must be an object')
+    deferred = {'real_certificate_replacement', 'independent_full_stack_restore', 'capacity_benchmark'}
+    observation = record.get('observation', {})
+    reasons = record.get('deferred_checks', {})
+    if not isinstance(observation, dict) or not isinstance(reasons, dict):
+        raise ValueError('Invalid stable observation or deferral record')
+    if (record.get('version') != tag[1:]
+            or record.get('decision') != 'accepted_with_documented_limitations'
+            or record.get('owner_accepted_limitations') is not True
+            or record.get('network_reachability_guarantee') is not False
+            or record.get('advertised_client_capacity') is not False
+            or set(reasons) != deferred
+            or any(not isinstance(reason, str) or not reason.strip()
+                   for reason in reasons.values())
+            or observation.get('status') != 'complete'
+            or observation.get('local_health_failures') != 0
+            or observation.get('collection_errors') != 0
+            or type(observation.get('samples')) is not int
+            or observation['samples'] <= 0
+            or record.get('local_restore') != 'PASS'
+            or record.get('acme_staging_dry_run') != 'PASS'):
+        raise ValueError('Stable requires the recorded owner decision and explicit verification limits')
 
 
 def checked_manifest(folder):
@@ -58,7 +92,7 @@ def validate_upgrade_report(report, commit, package_sha256, baseline):
             or report.get('baseline_commit') != baseline['commit']
             or report.get('baseline_version') != baseline['version']
             or report.get('baseline_package_sha256') != baseline['assets_sha256'][old_packages[0]]):
-        raise ValueError('Alpha.5 upgrade evidence differs from this baseline or release candidate')
+        raise ValueError('Published baseline upgrade evidence differs from this baseline or release candidate')
 
 
 def withdraw_superseded(api):
@@ -92,6 +126,11 @@ def main():
     inputs = ROOT / 'dist/release-input'
     metadata = json.loads((inputs / 'build.json').read_text())
     validate_identity(tag,commit,metadata,version)
+    prerelease = release_is_prerelease(tag)
+    acceptance = None
+    if not prerelease:
+        acceptance = json.loads((ROOT / 'docs/releases' / (tag + '-acceptance.json')).read_text())
+        validate_stable_acceptance(tag, acceptance)
     original = checked_manifest(inputs)
     names = {f'solartt-ui_{version}_amd64.deb',
              f'solartt-ui-{version}-linux-x86_64.tar.gz',f'solartt-ui-{version}-source.tar.gz','build.json'}
@@ -114,6 +153,13 @@ def main():
         (inputs / f'solartt-ui_{version}_amd64.deb').read_bytes()).hexdigest(),
         json.loads((ROOT / 'upstream/upgrade-alpha5-pin.json').read_text()))
     shutil.copyfile(ROOT / 'dist/alpha5/alpha5-upgrade-report.json', output / 'alpha5-upgrade-report.json')
+    alpha6 = json.loads((ROOT / 'dist/alpha6/alpha6-upgrade-report.json').read_text())
+    validate_upgrade_report(alpha6, commit, hashlib.sha256(
+        (inputs / f'solartt-ui_{version}_amd64.deb').read_bytes()).hexdigest(),
+        json.loads((ROOT / 'upstream/upgrade-alpha6-pin.json').read_text()))
+    shutil.copyfile(ROOT / 'dist/alpha6/alpha6-upgrade-report.json', output / 'alpha6-upgrade-report.json')
+    if acceptance is not None:
+        (output / 'release-acceptance.json').write_text(json.dumps(acceptance, indent=2) + '\n')
     for name in ['minimal-runtime.json','license-review-result.json']:
         if json.loads((output / name).read_text())['status'] != 'PASS':
             raise SystemExit('An attached release report did not pass')
@@ -122,7 +168,8 @@ def main():
     (output / 'release-tests.json').write_text(json.dumps({'source_commit':commit,
         'workflow_url':f'https://github.com/{repo}/actions/runs/{os.environ["GITHUB_RUN_ID"]}',
         'jobs':{name:results[name]['result'] for name in sorted(results)},
-        'scope':'Isolated CI acceptance, not stable real-network or sustained-load acceptance'},indent=2)+'\n')
+        'release_channel':'alpha' if prerelease else 'stable',
+        'scope':'Isolated CI acceptance; verification limits and owner decision are recorded separately'},indent=2)+'\n')
     files = sorted(output.iterdir())
     (output / 'SHA256SUMS').write_text(''.join(f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n' for p in files))
     checked_manifest(output)
@@ -145,12 +192,12 @@ def main():
     if not reporting or not reporting.get('enabled'):
         raise SystemExit('Private vulnerability reporting must be enabled before publication')
     existing = api('GET','/releases/tags/'+urllib.parse.quote(tag,safe=''))
-    if existing and (existing['target_commitish'] != commit or not existing['prerelease']):
+    if existing and (existing['target_commitish'] != commit or existing['prerelease'] != prerelease):
         raise SystemExit('Existing release identity/type differs; refusing overwrite')
     # Resume only byte-identical assets in an interrupted draft. Published assets
     # are never replaced, and unexpected files require operator investigation.
     release = existing or api('POST','/releases',{'tag_name':tag,'target_commitish':commit,'name':'SolarTT-UI '+tag,
-        'body':notes,'draft':True,'prerelease':True,'make_latest':'false'})
+        'body':notes,'draft':True,'prerelease':prerelease,'make_latest':'false' if prerelease else 'true'})
     present = {asset['name']:asset for asset in release.get('assets',[])}
     if len(present) != len(release.get('assets',[])) or present.keys() - {p.name for p in output.iterdir()}:
         raise SystemExit('Unexpected or duplicate existing release assets')
@@ -167,12 +214,12 @@ def main():
         upload_url = release['upload_url'].split('{',1)[0]+'?name='+urllib.parse.quote(path.name,safe='')
         uploaded = api('POST',upload_url,path.read_bytes(),'application/octet-stream')
         verify_uploaded_asset(path,uploaded)
-    published = (api('PATCH',f'/releases/{release["id"]}',{'draft':False,'prerelease':True,'make_latest':'false'})
+    published = (api('PATCH',f'/releases/{release["id"]}',{'draft':False,'prerelease':prerelease,'make_latest':'false' if prerelease else 'true'})
                  if release['draft'] else release)
-    if published['draft'] or not published['prerelease']:
+    if published['draft'] or published['prerelease'] != prerelease:
         raise SystemExit('Unexpected published release state')
     withdraw_superseded(api)
-    print('Published alpha prerelease:',published['html_url'])
+    print('Published', 'alpha prerelease:' if prerelease else 'stable release:', published['html_url'])
 
 
 if __name__ == '__main__':

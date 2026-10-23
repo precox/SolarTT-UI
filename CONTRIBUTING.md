@@ -38,8 +38,8 @@ production host.
 
 ## Releases
 
-Release maintainers: follow [the alpha publication procedure](docs/releasing.md).
-An authorized alpha tag starts gated publication; stable field gates remain a
+Release maintainers: follow [the release publication procedure](docs/releasing.md).
+An authorized canonical release tag starts gated publication; field evidence remains a
 separate iteration. Never run disposable CI lifecycle tests on a production node.
 
 ## Contribution license

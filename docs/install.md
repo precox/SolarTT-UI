@@ -1,9 +1,9 @@
-# Install v0.1.0-alpha.6
+# Install v0.1.0
 
 Supported packaging target: **Ubuntu 24.04, Linux x86_64, systemd**. Other
 Linux distributions and older glibc versions have not been verified. These
-instructions prepare an isolated pilot; never replace an existing VPN endpoint
-until the release gates and a separate rollout review are complete.
+instructions configure a single node; review the release scope and coordinate
+an existing-service upgrade separately.
 
 See [runtime requirements and sizing](system-requirements.md). A lightly loaded
 2-GiB node is a planning target for a small pilot; the earlier 4-GiB VM proposal
@@ -13,7 +13,7 @@ and sustained concurrent-user capacity remain open.
 ## Package
 
 Use an empty directory and download the matching assets from the
-[current alpha release](https://github.com/precox/SolarTT-UI/releases/tag/v0.1.0-alpha.6).
+[current stable release](https://github.com/precox/SolarTT-UI/releases/tag/v0.1.0).
 The deb is the supported installation method; the binary tar has identical file
 payloads but does not perform service account setup. The source archive is for
 reconstruction, not a runtime installer. On a minimal Ubuntu system:
@@ -21,23 +21,23 @@ reconstruction, not a runtime installer. On a minimal Ubuntu system:
 ```sh
 sudo apt-get update
 sudo apt-get install -y ca-certificates curl
-curl -fLO https://github.com/precox/SolarTT-UI/releases/download/v0.1.0-alpha.6/SHA256SUMS
-curl -fLO https://github.com/precox/SolarTT-UI/releases/download/v0.1.0-alpha.6/solartt-ui_0.1.0-alpha.6_amd64.deb
+curl -fLO https://github.com/precox/SolarTT-UI/releases/download/v0.1.0/SHA256SUMS
+curl -fLO https://github.com/precox/SolarTT-UI/releases/download/v0.1.0/solartt-ui_0.1.0_amd64.deb
 # This verifies the selected download; other manifest entries are intentionally absent.
 sha256sum --ignore-missing -c SHA256SUMS
-sudo apt-get install ./solartt-ui_0.1.0-alpha.6_amd64.deb
+sudo apt-get install ./solartt-ui_0.1.0_amd64.deb
 ```
 
 The public deb filename uses the SolarTT version; its internal Debian Version
-remains `0.1.0~alpha6` for correct prerelease ordering.
+is `0.1.0`; previous alpha packages used `~alphaN` for prerelease ordering.
 APT installs the declared runtime libraries; no Rust, compiler, CMake, Node or
 Chromium is needed. If all release assets were downloaded, inspect them with:
 
 ```sh
 sha256sum -c SHA256SUMS
-dpkg-deb --info solartt-ui_0.1.0-alpha.6_amd64.deb
-dpkg-deb --contents solartt-ui_0.1.0-alpha.6_amd64.deb
-sudo apt-get install ./solartt-ui_0.1.0-alpha.6_amd64.deb
+dpkg-deb --info solartt-ui_0.1.0_amd64.deb
+dpkg-deb --contents solartt-ui_0.1.0_amd64.deb
+sudo apt-get install ./solartt-ui_0.1.0_amd64.deb
 ```
 
 Some minimized images configure dpkg to discard `/usr/share/doc`, including

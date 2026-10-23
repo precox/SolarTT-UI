@@ -1,4 +1,5 @@
 """Release guard regressions; temporary synthetic manifests only."""
+import copy
 import hashlib
 import json
 import tempfile
@@ -6,7 +7,7 @@ import unittest
 from pathlib import Path
 
 from license_review import verify
-from publish_alpha import checked_manifest, validate_identity, validate_upgrade_report, verify_uploaded_asset
+from publish_alpha import checked_manifest, validate_identity, validate_upgrade_report, verify_uploaded_asset, release_is_prerelease, validate_stable_acceptance
 
 
 class LicenseReviewTests(unittest.TestCase):
@@ -74,12 +75,60 @@ class PublicationGuards(unittest.TestCase):
         commit = 'a'*40
         validate_identity('v0.1.0-alpha.3',commit,{'version':'0.1.0-alpha.3','source_commit':commit},'0.1.0-alpha.3')
 
-    def test_stable_tag_or_different_source_rejected(self):
+    def test_mismatched_version_or_different_source_rejected(self):
         commit = 'a'*40
         for tag, source in [('v0.1.0',commit),('v0.1.0-alpha.3','b'*40)]:
             with self.subTest(tag=tag, source=source):
                 with self.assertRaises(ValueError):
                     validate_identity(tag,commit,{'version':'0.1.0-alpha.3','source_commit':source},'0.1.0-alpha.3')
+
+    def test_release_channel_and_exact_stable_identity(self):
+        self.assertFalse(release_is_prerelease('v0.1.0'))
+        self.assertTrue(release_is_prerelease('v0.1.0-alpha.6'))
+        commit = 'a'*40
+        validate_identity('v0.1.0', commit, {'version':'0.1.0', 'source_commit':commit}, '0.1.0')
+        for tag in ['0.1.0', 'v01.1.0', 'v0.01.0', 'v0.1.00', 'v0.1.0-alpha.06',
+                    'v0.1.0-rc.1', 'v0.1.0+build', '../v0.1.0', 'v0.1.0\n']:
+            with self.subTest(tag=tag), self.assertRaises(ValueError):
+                release_is_prerelease(tag)
+
+    def test_stable_requires_explicit_decision_and_honest_limits(self):
+        record = {
+            'version':'0.1.0', 'decision':'accepted_with_documented_limitations',
+            'owner_accepted_limitations':True, 'network_reachability_guarantee':False,
+            'advertised_client_capacity':False,
+            'deferred_checks':{name:'Not yet verified' for name in
+                ['real_certificate_replacement', 'independent_full_stack_restore', 'capacity_benchmark']},
+            'observation':{'status':'complete', 'local_health_failures':0, 'collection_errors':0, 'samples':12},
+            'local_restore':'PASS', 'acme_staging_dry_run':'PASS',
+        }
+        validate_stable_acceptance('v0.1.0', record)
+        for key, value in [('version','0.1.1'), ('decision','pending'),
+                           ('owner_accepted_limitations',False), ('owner_accepted_limitations',1),
+                           ('network_reachability_guarantee',True), ('advertised_client_capacity',True),
+                           ('local_restore','NOT VERIFIED'), ('acme_staging_dry_run','FAIL'),
+                           ('observation',None), ('deferred_checks',[])]:
+            with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+                validate_stable_acceptance('v0.1.0', {**record, key:value})
+        for key, value in [('status','running'), ('local_health_failures',1),
+                           ('collection_errors',1), ('samples',0), ('samples',True), ('samples','12')]:
+            changed = copy.deepcopy(record)
+            changed['observation'][key] = value
+            with self.subTest(observation=key, value=value), self.assertRaises(ValueError):
+                validate_stable_acceptance('v0.1.0', changed)
+        for mutation in ['missing', 'empty', 'extra']:
+            changed = copy.deepcopy(record)
+            if mutation == 'missing':
+                del changed['deferred_checks']['capacity_benchmark']
+            elif mutation == 'empty':
+                changed['deferred_checks']['capacity_benchmark'] = ' '
+            else:
+                changed['deferred_checks']['another_gate'] = 'Unverified'
+            with self.subTest(deferral=mutation), self.assertRaises(ValueError):
+                validate_stable_acceptance('v0.1.0', changed)
+        with self.assertRaises(ValueError):
+            validate_stable_acceptance('v0.1.0', None)
+        validate_stable_acceptance('v0.1.0-alpha.7', {})
 
     def test_manifest_rejects_tamper_duplicates_and_traversal(self):
         with tempfile.TemporaryDirectory() as folder:

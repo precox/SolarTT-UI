@@ -369,3 +369,18 @@ installation baseline. Verified TLS/H2, private no-store UI and public cover
 revoked/reset for acceptance on this host; failure injection took place only in
 the isolated fixture. These checks do not establish actual Android acceptance or
 continuous production-stream preservation.
+
+## v0.1.0 release decision — 2026-10-23
+
+Historical entries above retain their original test scope. The owner approved
+v0.1.0 with explicit verification limits, recorded in
+[stable acceptance](stable-acceptance-2026-10-23.md). The installed alpha.6
+24-hour observation completed: 1,373 samples, 138 local health checks, zero
+health/collection failures, restarts or OOMs. A matching-key local database
+restore and ACME staging dry run passed. These results do not establish direct
+client reachability, full-stack off-host recovery, actual certificate replacement
+or maximum capacity. The release candidate changes no runtime behavior or
+external dependencies; its new version and release tooling require fresh CI,
+including real package upgrades from alpha.1, alpha.5 and alpha.6. Tagged CI and
+exact-source reports are attached to the release; this historical document does
+not anticipate their outcome.
