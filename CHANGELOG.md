@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.1.0 — 2026-10-23
+
+- First stable single-node release for Ubuntu 24.04 x86_64/systemd, based on the
+  accepted alpha.6 runtime. No runtime logic, dependency or schema change.
+- Record 24-hour local observation: 1,373 samples, 138 UI/TLS checks, no collection
+  failures, service restarts or OOM; matching-key database restore and ACME
+  staging renewal passed.
+- Add guarded stable publication and a pinned published alpha.6 upgrade/recovery
+  VM leg alongside alpha.1 and alpha.5. Alpha publication remains prerelease.
+- Publish the owner's accepted limitations: no network-reachability or censorship
+  guarantee, no advertised client capacity, no verified full off-host stack
+  recovery or actual future public certificate replacement.
+
+See [release notes](docs/releases/v0.1.0.md) and the
+[accepted scope](docs/stable-acceptance-2026-10-23.md). Publication does not install
+this package on an existing node or retire its services.
+
 ## 0.1.0-alpha.6 — 2026-10-21
 
 - Fix managed H2 listener timeout closing existing TCP/UDP pipes while waiting

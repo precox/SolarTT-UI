@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Verify the actual published alpha.5 package; extract ONLY on a disposable runner."""
+"""Verify published alpha.5/alpha.6; extract ONLY on a disposable runner."""
+import argparse
 import hashlib
 import json
 import os
@@ -17,10 +18,10 @@ def verify(folder, pin):
         if Path(name).name != name or not re.fullmatch(r"[0-9a-f]{64}", digest):
             raise ValueError("Unsafe baseline pin")
         if hashlib.sha256((folder / name).read_bytes()).hexdigest() != digest:
-            raise ValueError("Published alpha.5 asset checksum mismatch")
+            raise ValueError("Published baseline asset checksum mismatch")
     metadata = json.loads((folder / "build.json").read_text())
     if metadata["version"] != pin["version"] or metadata["source_commit"] != pin["commit"]:
-        raise ValueError("Published alpha.5 source identity mismatch")
+        raise ValueError("Published baseline source identity mismatch")
     manifest = {}
     for line in (folder / "SHA256SUMS").read_text().splitlines():
         digest, name = line.split("  ", 1)
@@ -36,13 +37,15 @@ def verify(folder, pin):
     return folder / packages[0]
 
 
-def main():
+def main(baseline="alpha5"):
     if (os.environ.get("GITHUB_ACTIONS") != "true" or os.environ.get("RUNNER_OS") != "Linux"
             or os.environ.get("SOLARTT_PILOT_DISPOSABLE") != "1"
             or not str(ROOT).startswith("/home/runner/work/")):
         raise SystemExit("Published baseline extraction requires a disposable GitHub runner")
-    pin = json.loads((ROOT / "upstream/upgrade-alpha5-pin.json").read_text())
-    destination = ROOT / ".dev/alpha5-baseline"
+    if baseline not in {"alpha5", "alpha6"}:
+        raise SystemExit("Unknown published baseline")
+    pin = json.loads((ROOT / f"upstream/upgrade-{baseline}-pin.json").read_text())
+    destination = ROOT / f".dev/{baseline}-baseline"
     destination.mkdir(parents=True, exist_ok=False, mode=0o700)
     for name in pin["assets_sha256"]:
         if Path(name).name != name:
@@ -50,11 +53,13 @@ def main():
         url = f"https://github.com/{pin['repository']}/releases/download/{pin['tag']}/{name}"
         (destination / name).write_bytes(urllib.request.urlopen(url, timeout=60).read())
     package = verify(destination, pin)
-    if subprocess.check_output(["dpkg-deb", "-f", str(package), "Version"], text=True).strip() != "0.1.0~alpha5":
+    if subprocess.check_output(["dpkg-deb", "-f", str(package), "Version"], text=True).strip() != pin["version"].replace("-alpha.", "~alpha"):
         raise SystemExit("Unexpected baseline Debian version")
     subprocess.run(["dpkg-deb", "--extract", str(package), str(destination / "root")], check=True)
-    print("Verified published alpha.5 package at source", pin["commit"])
+    print("Verified published", baseline, "package at source", pin["commit"])
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--baseline", choices=["alpha5", "alpha6"], default="alpha5")
+    main(parser.parse_args().baseline)

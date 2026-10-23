@@ -2,7 +2,7 @@ name: CI
 on:
   push:
     branches: [main, 'dev/**']
-    tags: ['v*-alpha.*']
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
 permissions:
@@ -56,6 +56,7 @@ jobs:
         with:
           toolchain: 1.95.0
       - run: sudo apt-get update && sudo apt-get install -y cmake libclang-dev pkg-config python3-h2 openssl haproxy
+        timeout-minutes: 10
       - run: python3 scripts/prepare_upstream.py
       - run: python3 scripts/prepare_client.py
       - run: python3 scripts/prepare_caddy.py
@@ -109,7 +110,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        baseline: [alpha1, alpha5]
+        baseline: [alpha1, alpha5, alpha6]
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
@@ -128,8 +129,8 @@ jobs:
           path: dist/current
       - run: python3 scripts/prepare_pilot_baseline.py
         if: matrix.baseline == 'alpha1'
-      - run: python3 scripts/prepare_alpha5_baseline.py
-        if: matrix.baseline == 'alpha5'
+      - run: python3 scripts/prepare_alpha5_baseline.py --baseline ${{ matrix.baseline }}
+        if: matrix.baseline != 'alpha1'
       - run: python3 scripts/prepare_client.py
       - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         if: matrix.baseline == 'alpha1'
@@ -153,9 +154,9 @@ jobs:
       - name: Fresh VM upgrade, compatible rollback and schema-2 recovery
         if: matrix.baseline == 'alpha1'
         run: python3 scripts/pilot_upgrade.py
-      - name: Published alpha.5 to candidate, guarded rollback and restore
-        if: matrix.baseline == 'alpha5'
-        run: python3 scripts/pilot_alpha5_upgrade.py
+      - name: Published baseline to candidate, guarded rollback and restore
+        if: matrix.baseline != 'alpha1'
+        run: python3 scripts/pilot_alpha5_upgrade.py --baseline ${{ matrix.baseline }}
       - name: Prepare passive manual acceptance kit without deployment
         if: matrix.baseline == 'alpha5'
         run: python3 scripts/prepare_acceptance_kit.py
@@ -166,8 +167,8 @@ jobs:
         run: sudo journalctl -u solartt-agent.service -u solartt-panel.service --no-pager -n 100
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ${{ matrix.baseline == 'alpha1' && 'solartt-isolated-upgrade-pilot' || 'solartt-alpha5-upgrade-pilot' }}
-          path: ${{ matrix.baseline == 'alpha1' && 'dist/' || 'dist/alpha5-upgrade-report.json' }}
+          name: ${{ matrix.baseline == 'alpha1' && 'solartt-isolated-upgrade-pilot' || format('solartt-{0}-upgrade-pilot', matrix.baseline) }}
+          path: ${{ matrix.baseline == 'alpha1' && 'dist/' || format('dist/{0}-upgrade-report.json', matrix.baseline) }}
           retention-days: 7
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: matrix.baseline == 'alpha5'
@@ -249,9 +250,13 @@ jobs:
           path: dist/alpha5
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
+          name: solartt-alpha6-upgrade-pilot
+          path: dist/alpha6
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
           name: solartt-minimal-runtime
           path: dist/minimal
-      - name: Publish verified alpha assets
+      - name: Publish verified release assets
         run: python3 scripts/publish_alpha.py
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

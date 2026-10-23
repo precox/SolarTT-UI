@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Published alpha.5 -> candidate, in a fresh disposable GitHub Ubuntu VM only."""
+"""Published alpha.5/alpha.6 -> candidate on a disposable GitHub Ubuntu VM."""
+import argparse
 import hashlib
 import json
 import pwd
@@ -23,13 +24,20 @@ print(hashlib.sha256(json.dumps([doc,ledger],sort_keys=True,separators=(',',':')
 
 
 class Alpha5Pilot(Pilot):
+    def __init__(self, baseline="alpha5"):
+        if baseline not in {"alpha5", "alpha6"}:
+            raise ValueError("Unknown published baseline")
+        super().__init__()
+        self.baseline_id = baseline
+
     def fingerprint(self, database=None):
         return run("sudo", "python3", "-c", FINGERPRINT, str(database or self.database)).stdout.strip()
 
     def main(self):
-        baseline_dir = ROOT / ".dev/alpha5-baseline"
+        baseline_dir = ROOT / f".dev/{self.baseline_id}-baseline"
         self.baseline = baseline_dir / "root/usr/share/doc/solartt-ui"
-        pin = json.loads((ROOT / "upstream/upgrade-alpha5-pin.json").read_text())
+        pin = json.loads((ROOT / f"upstream/upgrade-{self.baseline_id}-pin.json").read_text())
+        old_deb_version = pin["version"].replace("-alpha.", "~alpha")
         old = verify(baseline_dir, pin)
         candidate = ROOT / "dist/current"
         manifest = checked_manifest(candidate)
@@ -50,7 +58,7 @@ class Alpha5Pilot(Pilot):
         self.sentinel_pid = run("systemctl", "show", SENTINEL, "-p", "MainPID", "--value").stdout.strip()
         self.ssh_pid = run("systemctl", "show", "ssh.service", "-p", "MainPID", "--value").stdout.strip()
         run("sudo", "dpkg", "-i", str(old))
-        self.installed("0.1.0~alpha5")
+        self.installed(old_deb_version)
         self.configure()
         self.start(pin["version"])
         credentials = []
@@ -106,7 +114,7 @@ class Alpha5Pilot(Pilot):
         candidate_db = self.database
         candidate_digest = self.digest(candidate_db)
         run("sudo", "dpkg", "-i", str(old))
-        self.installed("0.1.0~alpha5")
+        self.installed(old_deb_version)
         self.select_database(rollback)
         self.start(pin["version"])
         for credential, profile in zip(credentials, profiles):
@@ -158,12 +166,16 @@ class Alpha5Pilot(Pilot):
             "schema_before": before["schema"], "schema_after": used["schema"],
             "baseline_confirmed_payload": before["confirmed"], "candidate_confirmed_payload": used["confirmed"],
             "scope": "disposable VM package upgrade/recovery; not human, Android, real-network or production acceptance"})
-        (ROOT / "dist/alpha5-upgrade-report.json").write_text(json.dumps(self.report, indent=2) + "\n")
+        self.report["checks"] = [name.replace("alpha5", self.baseline_id) for name in self.report["checks"]]
+        (ROOT / f"dist/{self.baseline_id}-upgrade-report.json").write_text(json.dumps(self.report, indent=2) + "\n")
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--baseline", choices=["alpha5", "alpha6"], default="alpha5")
+    args = parser.parse_args()
     require_disposable()
-    pilot = Alpha5Pilot()
+    pilot = Alpha5Pilot(args.baseline)
     try:
         pilot.main()
     finally:

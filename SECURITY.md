@@ -1,7 +1,8 @@
 # Security
 
-SolarTT-UI v0.1.0-alpha.4 is experimental. No supported stable version exists.
-Keep administration private and retain a tested backup before a pilot upgrade.
+SolarTT-UI v0.1.0 is the first stable single-node release for Ubuntu 24.04 x86_64.
+Its [verification limits](docs/stable-acceptance-2026-10-23.md) are explicit.
+Keep administration private and retain a tested backup before upgrading.
 
 ## Reporting a vulnerability
 
@@ -9,7 +10,7 @@ Use [GitHub's private vulnerability report form](https://github.com/precox/Solar
 Do not put exploitable details, credentials, profile exports, keys, database files
 or raw user logs in public issues. A sanitized ordinary bug report can be filed
 in Issues. The maintainer reviews reports on a best-effort basis; there is no
-response-time SLA for this alpha. Check the repository reporting form before
+response-time SLA. Check the repository reporting form before
 sending confidential material; publication requires private reporting enabled.
 
 ## Boundaries

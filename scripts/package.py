@@ -70,7 +70,7 @@ Priority: optional
 Homepage: https://github.com/precox/SolarTT-UI
 Description: Independent management for TrustTunnel
  Managed H2 endpoint, local web panel, durable payload quotas and profile export.
- Development build; configure explicitly before starting services.
+ Configure explicitly before starting services.
 """)
         for name in ("postinst", "prerm", "postrm"):
             copy(ROOT / "packaging/debian" / name, "DEBIAN/" + name, 0o755)
@@ -102,7 +102,7 @@ Description: Independent management for TrustTunnel
     (output / "build.json").write_text(json.dumps(metadata, indent=2) + "\n")
     files = [deb, archive, source_archive, output / "build.json"]
     (output / "SHA256SUMS").write_text("".join(f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n" for p in files))
-    print("Built development packages; no service installed or started")
+    print("Built release packages; no service installed or started")
 
 if __name__ == "__main__":
     main()

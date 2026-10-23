@@ -5,7 +5,7 @@
 # SolarTT-UI
 
 <p align="center">
-  <a href="https://github.com/precox/SolarTT-UI/releases"><img src="https://img.shields.io/github/v/release/precox/SolarTT-UI?include_prereleases&amp;color=ffbc72" alt="Latest published alpha release"></a>
+  <a href="https://github.com/precox/SolarTT-UI/releases"><img src="https://img.shields.io/github/v/release/precox/SolarTT-UI?color=ffbc72" alt="Latest published release"></a>
   <a href="https://github.com/precox/SolarTT-UI/actions/workflows/ci.yml"><img src="https://github.com/precox/SolarTT-UI/actions/workflows/ci.yml/badge.svg?branch=main" alt="Build, test and security CI"></a>
   <a href="https://github.com/precox/SolarTT-UI/actions/workflows/watch-trusttunnel.yml"><img src="https://github.com/precox/SolarTT-UI/actions/workflows/watch-trusttunnel.yml/badge.svg?branch=main" alt="TrustTunnel release watcher"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="Apache-2.0 license"></a>
@@ -19,11 +19,14 @@ independent community project, not an official TrustTunnel product.
 This page covers installation and everyday use. For development and build
 instructions, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
-**Version documented: [v0.1.0-alpha.6](docs/releases/v0.1.0-alpha.6.md).**
+**Version documented: [v0.1.0](docs/releases/v0.1.0.md).**
 Check [GitHub Releases](https://github.com/precox/SolarTT-UI/releases) for published
 packages matching this version; a source branch alone is not a binary release.
-This alpha is intended for an operator-supervised single-node pilot. There is
-no stable release or guaranteed concurrent-user capacity yet.
+This first stable release covers operator-managed single-node deployments on
+Ubuntu 24.04 x86_64. Network reachability under filtering is not guaranteed.
+Concurrent-user capacity, full recovery after host loss and an actual future
+certificate replacement remain explicitly unverified. See the
+[accepted release scope and limitations](docs/stable-acceptance-2026-10-23.md).
 
 <p align="center">
   <img src="docs/screenshots/mobile-users.png" width="280" alt="Mobile panel demo: synthetic users, shared traffic quota and individual device profiles">
@@ -51,13 +54,13 @@ No production users, credentials or traffic are shown.</p>
 ## Download
 
 Get the matching files from the
-[alpha.6 release](https://github.com/precox/SolarTT-UI/releases/tag/v0.1.0-alpha.6):
+[v0.1.0 release](https://github.com/precox/SolarTT-UI/releases/tag/v0.1.0):
 
 | Target | File | Use |
 | --- | --- | --- |
-| Ubuntu 24.04, x86_64, systemd | `solartt-ui_0.1.0-alpha.6_amd64.deb` | Recommended installation; includes service account setup |
-| Linux x86_64 binary payload | `solartt-ui-0.1.0-alpha.6-linux-x86_64.tar.gz` | Manual deployment; does not set up service accounts |
-| Source code | `solartt-ui-0.1.0-alpha.6-source.tar.gz` | Building and inspecting the release |
+| Ubuntu 24.04, x86_64, systemd | `solartt-ui_0.1.0_amd64.deb` | Recommended installation; includes service account setup |
+| Linux x86_64 binary payload | `solartt-ui-0.1.0-linux-x86_64.tar.gz` | Manual deployment; does not set up service accounts |
+| Source code | `solartt-ui-0.1.0-source.tar.gz` | Building and inspecting the release |
 
 The Ubuntu package is the verified deployment target; the binary archive does
 not imply support for other distributions. Download `SHA256SUMS` alongside your
@@ -72,7 +75,7 @@ On the target server, use an empty directory for the downloaded `.deb` and
 ```sh
 sha256sum --ignore-missing -c SHA256SUMS
 sudo apt-get update
-sudo apt-get install ./solartt-ui_0.1.0-alpha.6_amd64.deb
+sudo apt-get install ./solartt-ui_0.1.0_amd64.deb
 ```
 
 Continue only if the package checksum passes. No Rust, compiler, Node or Chromium
@@ -207,7 +210,7 @@ install the resulting package on the VPN node.
 ### Build, test and release CI
 
 The [CI workflow](https://github.com/precox/SolarTT-UI/actions/workflows/ci.yml)
-checks pushes to `main` and `dev/**`, pull requests and alpha tags. It can also
+checks pushes to `main` and `dev/**`, pull requests and release tags. It can also
 be started manually. It separates these checks:
 
 | Job | Checks |
@@ -216,15 +219,18 @@ be started manually. It separates these checks:
 | `portable` | Formatting, linting, policy/panel tests and release-tool checks |
 | `native` | Managed agent, browser, TLS/H2 TCP/UDP, proxy and package lifecycle |
 | `legacy` | Patched upstream regression tests |
-| `pilot` | Separate disposable Ubuntu VM legs for alpha.1 and published alpha.5 upgrade/guarded recovery |
+| `pilot` | Separate disposable Ubuntu VM legs for alpha.1 and published alpha.5/alpha.6 upgrade/guarded recovery |
 | `minimal` | Runtime package in minimal Ubuntu without build tools |
 
-Publication runs for alpha tags after all six prerequisite jobs pass. These
+Publication runs for alpha and stable tags after all six prerequisite job families
+pass, including all three upgrade matrix legs. Stable publication additionally
+requires the recorded owner decision and explicit verification limits. These
 checks are separate from real-client and sustained-load acceptance. A
 [scoped alpha.6 owner check](docs/alpha6-acceptance-2026-10-21.md) covers Android
-network switching, long TCP/UDP streams and revocation. Broader client coverage,
-operational certificate renewal, off-host recovery and supported capacity remain
-work for stable. See
+network switching, long TCP/UDP streams and revocation. The [24-hour server record](docs/stable-acceptance-2026-10-23.md) adds local
+observation, matching-key restore and staging ACME evidence. Broader client
+coverage, real certificate replacement, off-host recovery and capacity remain
+documented limitations of v0.1.0. See
 [release gates](docs/release-gates.md) and [verification history](docs/verification.md).
 
 ### TrustTunnel release watcher

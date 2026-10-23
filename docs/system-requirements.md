@@ -2,7 +2,7 @@
 
 ## Supported runtime
 
-The development package targets **Ubuntu 24.04, Linux x86_64, systemd**.
+The v0.1.0 package targets **Ubuntu 24.04, Linux x86_64, systemd**.
 Other distributions/architectures have not passed package acceptance. Install
 tested CI binaries on the node; Rust, CMake, libclang, Node and Chromium are not
 runtime dependencies of the packaged panel/agent. Browser acceptance runs in CI;
@@ -20,7 +20,7 @@ payload; the TrustTunnel agent does.
 | CPU | 1 vCPU candidate; 2 vCPU preferred for the pilot |
 | RAM | 2 GiB total on a lightly loaded node |
 | VM disk | 20–30 GiB for OS, packages, logs and backups |
-| Connectivity | Reachable IPv4, reviewed TCP443 entry and administrative access |
+| Connectivity | Reachable IPv4, reviewed TCP/TLS entry and administrative access |
 | Build | In CI, with native build tools; not on the pilot node |
 
 These are planning estimates, **not measured minimum requirements or a
@@ -72,8 +72,12 @@ A 2026-10-17 installed-node low-load point sample was about 4 MiB panel RSS and
 9 MiB agent RSS. It excludes host proxies and does not represent a simultaneous
 loaded peak. The package's runtime ELF libraries are checked independently in CI;
 actual installed disk size is included in the minimal-runtime release report.
-Representative concurrent traffic, long-lived sessions and CPU/disk costs still
-need sustained measurement. Before
+The 2026-10-22–23 installed alpha.6 observation lasted 24 hours: agent RSS
+peaked at 17.36 MiB and panel at 4.45 MiB across 1,373 samples, with no OOMs
+or service restarts. This included idle periods and is not a capacity benchmark.
+[The acceptance record](stable-acceptance-2026-10-23.md) describes its scope.
+Representative concurrent traffic, throughput, UDP loss and disk costs still
+need measurement. Before
 publishing stable minimum requirements or a users-per-node estimate, measure
 idle, normal operation and bounded peak behavior, including concurrent
 administrative login/export and unrelated scheduled workloads.
@@ -94,4 +98,4 @@ client/recovery checks, followed by 24–72 hours of observation. That is roughl
 2–4 calendar days if DNS, certificates and client access are ready and no blocker
 appears. The original 7–14-day window is optional calendar headroom for operator
 availability, additional networks or longer observation; it is not mandatory
-test execution time. Stable-release gates beyond this pilot remain separate.
+test execution time. The v0.1.0 acceptance decision and deferred measurements remain separate.
