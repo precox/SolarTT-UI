@@ -162,6 +162,33 @@ fn udp_frame(destination: SocketAddr, data: &[u8]) -> Bytes {
     out.extend_from_slice(data);
     out.freeze()
 }
+type DestinationDecisions = Arc<std::sync::Mutex<Vec<(std::net::IpAddr, bool)>>>;
+
+struct ObservedDestinations {
+    adapter: Arc<solartt_agent::Adapter>,
+    decisions: DestinationDecisions,
+}
+impl trusttunnel::managed::Policy for ObservedDestinations {
+    fn allows_destination(&self, ip: std::net::IpAddr) -> bool {
+        let allowed = self.adapter.allows_destination(ip);
+        self.decisions.lock().unwrap().push((ip, allowed));
+        // Keep the regression safe even against the pre-fix adapter.
+        allowed && !ip.is_multicast()
+    }
+    fn resolve(
+        &self,
+        source: &trusttunnel::authentication::Source<'_>,
+    ) -> std::io::Result<trusttunnel::managed::Identity> {
+        self.adapter.resolve(source)
+    }
+    fn open(
+        &self,
+        identity: trusttunnel::managed::Identity,
+    ) -> std::io::Result<Arc<dyn trusttunnel::managed::Session>> {
+        self.adapter.open(identity)
+    }
+}
+
 struct Fixture {
     engine: Arc<Engine>,
     address: SocketAddr,
@@ -186,6 +213,13 @@ impl Fixture {
     async fn with_options(
         denied_addresses: std::collections::HashSet<std::net::IpAddr>,
         listener_timeout: u64,
+    ) -> Self {
+        Self::with_destination_observer(denied_addresses, listener_timeout, None).await
+    }
+    async fn with_destination_observer(
+        denied_addresses: std::collections::HashSet<std::net::IpAddr>,
+        listener_timeout: u64,
+        decisions: Option<DestinationDecisions>,
     ) -> Self {
         let _ = rustls::crypto::ring::default_provider().install_default();
         let dir = tempfile::Builder::new()
@@ -235,7 +269,14 @@ allowed_sni = ["fixture.example.org"]
             engine: engine.clone(),
             denied_addresses,
         });
-        let core = Core::new_managed(settings, adapter.clone(), tls, Shutdown::new(), adapter)
+        let policy: Arc<dyn trusttunnel::managed::Policy> = match decisions {
+            Some(decisions) => Arc::new(ObservedDestinations {
+                adapter: adapter.clone(),
+                decisions,
+            }),
+            None => adapter.clone(),
+        };
+        let core = Core::new_managed(settings, adapter, tls, Shutdown::new(), policy)
             .unwrap_or_else(|_| panic!("Core initialization failed"));
         let core = Task(tokio::spawn(async move { core.listen().await }));
         let tcp = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -316,6 +357,49 @@ async fn h2_one_way_download_crosses_lease_boundary() {
     }
 }
 
+async fn listener_roundtrip(
+    tx: &mut h2::SendStream<Bytes>,
+    rx: &mut h2::RecvStream,
+    udp_tx: &mut h2::SendStream<Bytes>,
+    udp_rx: &mut h2::RecvStream,
+    destination: SocketAddr,
+) -> Result<(), String> {
+    async fn reply(rx: &mut h2::RecvStream, size: usize) -> Result<Vec<u8>, String> {
+        tokio::time::timeout(Duration::from_secs(3), async {
+            let mut bytes = vec![];
+            while bytes.len() < size {
+                let chunk = rx
+                    .data()
+                    .await
+                    .ok_or("original stream closed")?
+                    .map_err(|error| error.to_string())?;
+                rx.flow_control()
+                    .release_capacity(chunk.len())
+                    .map_err(|error| error.to_string())?;
+                bytes.extend_from_slice(&chunk);
+            }
+            if bytes.len() != size {
+                return Err("unexpected reply length".to_owned());
+            }
+            Ok(bytes)
+        })
+        .await
+        .map_err(|_| "original stream reply timed out".to_owned())?
+    }
+    tx.send_data(Bytes::from_static(b"alive"), false)
+        .map_err(|error| error.to_string())?;
+    if reply(rx, 5).await? != b"alive" {
+        return Err("incorrect TCP reply".to_owned());
+    }
+    udp_tx
+        .send_data(udp_frame(destination, b"alive"), false)
+        .map_err(|error| error.to_string())?;
+    if &reply(udp_rx, 45).await?[40..] != b"alive" {
+        return Err("incorrect UDP reply".to_owned());
+    }
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn active_tcp_udp_survive_listener_timeout_and_revoke_remains_scoped() {
     for limit in [None, Some(64 * 1024)] {
@@ -332,19 +416,32 @@ async fn active_tcp_udp_survive_listener_timeout_and_revoke_remains_scoped() {
         assert_eq!(status, 200);
         let (status, mut b_udp_tx, mut b_udp_rx) = b.request("_udp2", &basic_b).await;
         assert_eq!(status, 200);
+        for (tx, rx, udp_tx, udp_rx) in [
+            (&mut a_tx, &mut a_rx, &mut a_udp_tx, &mut a_udp_rx),
+            (&mut b_tx, &mut b_rx, &mut b_udp_tx, &mut b_udp_rx),
+        ] {
+            listener_roundtrip(tx, rx, udp_tx, udp_rx, fixture.udp)
+                .await
+                .expect("Initial TCP/UDP streams must work before testing the listener deadline");
+        }
+        println!("SOLARTT_LISTENER_STREAMS_READY");
         // No new CONNECT, health request, reconnect or TLS keepalive workaround.
+        tokio::time::sleep(Duration::from_millis(1200)).await;
+        println!("SOLARTT_LISTENER_DEADLINE_ELAPSED");
         for _ in 0..8 {
             tokio::time::sleep(Duration::from_millis(350)).await;
             for (tx, rx, udp_tx, udp_rx) in [
                 (&mut a_tx, &mut a_rx, &mut a_udp_tx, &mut a_udp_rx),
                 (&mut b_tx, &mut b_rx, &mut b_udp_tx, &mut b_udp_rx),
             ] {
-                tx.send_data(Bytes::from_static(b"alive"), false).unwrap();
-                assert_eq!(payload(rx, 5).await, b"alive");
-                udp_tx
-                    .send_data(udp_frame(fixture.udp, b"alive"), false)
-                    .unwrap();
-                assert_eq!(&payload(udp_rx, 45).await[40..], b"alive");
+                if let Err(error) = listener_roundtrip(tx, rx, udp_tx, udp_rx, fixture.udp).await {
+                    assert!(!fixture._core.0.is_finished(), "Fixture endpoint stopped");
+                    assert!(
+                        fixture._tasks.iter().all(|task| !task.0.is_finished()),
+                        "Fixture echo server stopped"
+                    );
+                    panic!("SOLARTT_LISTENER_ORIGINAL_STREAM_LOST: {error}");
+                }
             }
         }
         let (_, complete) = fixture
@@ -522,6 +619,68 @@ async fn empty_users_reject_check_and_managed_destination_deny_applies_after_dns
             "denied destination reached through managed forwarding"
         );
     }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn udp_multicast_is_denied_without_charging_or_breaking_unicast() {
+    let decisions: DestinationDecisions = Default::default();
+    let fixture =
+        Fixture::with_destination_observer(Default::default(), 600, Some(decisions.clone())).await;
+    let (user, _, basic) = account(&fixture.engine, "multicast isolation", Some(4096)).await;
+    let client = fixture.client().await;
+    let (status, mut tx, mut rx) = client.request("_udp2", &basic).await;
+    assert_eq!(status, 200);
+    for target in ["224.0.0.251:5353", "239.255.255.250:1900"] {
+        let target: SocketAddr = target.parse().unwrap();
+        tx.send_data(udp_frame(target, b"denied"), false).unwrap();
+        tokio::time::timeout(Duration::from_secs(3), async {
+            loop {
+                if decisions
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .any(|(ip, _)| *ip == target.ip())
+                {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("UDP forwarding did not consult destination policy");
+        assert!(
+            decisions
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|(ip, allowed)| *ip == target.ip() && !allowed),
+            "multicast was admitted by the real adapter"
+        );
+    }
+    tx.send_data(udp_frame(fixture.udp, b"unicast"), false)
+        .unwrap();
+    assert_eq!(&payload(&mut rx, 47).await[40..], b"unicast");
+    let view = tokio::time::timeout(Duration::from_secs(3), async {
+        loop {
+            let view = fixture
+                .engine
+                .users()
+                .into_iter()
+                .find(|view| view.id == user)
+                .unwrap();
+            if view.confirmed_bytes == 14 && view.pending_bytes == 0 {
+                break view;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("unicast accounting did not settle");
+    assert_eq!(
+        view.charged_bytes - view.available_lease_bytes,
+        14,
+        "denied datagrams left an uncertain durable charge"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

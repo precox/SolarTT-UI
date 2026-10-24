@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify published alpha.5/alpha.6; extract ONLY on a disposable runner."""
+"""Verify published alpha.5/alpha.6/stable; extract ONLY on a disposable runner."""
 import argparse
 import hashlib
 import json
@@ -42,7 +42,7 @@ def main(baseline="alpha5"):
             or os.environ.get("SOLARTT_PILOT_DISPOSABLE") != "1"
             or not str(ROOT).startswith("/home/runner/work/")):
         raise SystemExit("Published baseline extraction requires a disposable GitHub runner")
-    if baseline not in {"alpha5", "alpha6"}:
+    if baseline not in {"alpha5", "alpha6", "stable"}:
         raise SystemExit("Unknown published baseline")
     pin = json.loads((ROOT / f"upstream/upgrade-{baseline}-pin.json").read_text())
     destination = ROOT / f".dev/{baseline}-baseline"
@@ -61,5 +61,5 @@ def main(baseline="alpha5"):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--baseline", choices=["alpha5", "alpha6"], default="alpha5")
+    parser.add_argument("--baseline", choices=["alpha5", "alpha6", "stable"], default="alpha5")
     main(parser.parse_args().baseline)

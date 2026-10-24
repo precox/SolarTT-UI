@@ -48,8 +48,8 @@ impl Authenticator for Adapter {
 }
 impl managed::Policy for Adapter {
     fn allows_destination(&self, ip: IpAddr) -> bool {
-        // IPv6 forwarding is outside the initial managed scope, including UDP.
-        if ip.is_ipv6() {
+        // The managed endpoint forwards IPv4 unicast only, including UDP.
+        if ip.is_ipv6() || ip.is_multicast() {
             return false;
         }
         !self.denied_addresses.contains(&ip)
@@ -147,4 +147,40 @@ pub fn local_addresses() -> io::Result<HashSet<IpAddr>> {
         cursor = interface.ifa_next;
     }
     Ok(addresses)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+    use trusttunnel::managed::Policy;
+
+    #[test]
+    fn destination_policy_rejects_multicast_and_preserves_other_denials() {
+        let directory = tempfile::Builder::new()
+            .permissions(std::fs::Permissions::from_mode(0o700))
+            .tempdir()
+            .unwrap();
+        let adapter = Adapter {
+            engine: Engine::open(&directory.path().join("policy.sqlite"), [17; 32]).unwrap(),
+            denied_addresses: ["192.0.2.7".parse().unwrap()].into_iter().collect(),
+        };
+        for address in [
+            "224.0.0.0",
+            "224.0.0.1",
+            "224.0.0.251",
+            "239.255.255.250",
+            "239.255.255.255",
+            "ff02::1",
+            "::1",
+            "2001:4860:4860::8888",
+            "192.0.2.7",
+        ] {
+            assert!(
+                !adapter.allows_destination(address.parse().unwrap()),
+                "destination policy allowed {address}"
+            );
+        }
+        assert!(adapter.allows_destination("1.1.1.1".parse().unwrap()));
+    }
 }

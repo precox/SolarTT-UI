@@ -148,16 +148,13 @@ def main():
         shutil.copyfile(inputs / name, output / name)
     shutil.copyfile(ROOT / 'dist/minimal/minimal-runtime.json', output / 'minimal-runtime.json')
     shutil.copyfile(ROOT / 'dist/pilot/pilot-report.json', output / 'pilot-report.json')
-    alpha5 = json.loads((ROOT / 'dist/alpha5/alpha5-upgrade-report.json').read_text())
-    validate_upgrade_report(alpha5, commit, hashlib.sha256(
-        (inputs / f'solartt-ui_{version}_amd64.deb').read_bytes()).hexdigest(),
-        json.loads((ROOT / 'upstream/upgrade-alpha5-pin.json').read_text()))
-    shutil.copyfile(ROOT / 'dist/alpha5/alpha5-upgrade-report.json', output / 'alpha5-upgrade-report.json')
-    alpha6 = json.loads((ROOT / 'dist/alpha6/alpha6-upgrade-report.json').read_text())
-    validate_upgrade_report(alpha6, commit, hashlib.sha256(
-        (inputs / f'solartt-ui_{version}_amd64.deb').read_bytes()).hexdigest(),
-        json.loads((ROOT / 'upstream/upgrade-alpha6-pin.json').read_text()))
-    shutil.copyfile(ROOT / 'dist/alpha6/alpha6-upgrade-report.json', output / 'alpha6-upgrade-report.json')
+    package_sha256 = hashlib.sha256((inputs / f'solartt-ui_{version}_amd64.deb').read_bytes()).hexdigest()
+    for baseline in ['alpha5', 'alpha6', 'stable']:
+        report_name = baseline + '-upgrade-report.json'
+        report_path = ROOT / 'dist' / baseline / report_name
+        validate_upgrade_report(json.loads(report_path.read_text()), commit, package_sha256,
+                                json.loads((ROOT / 'upstream' / ('upgrade-' + baseline + '-pin.json')).read_text()))
+        shutil.copyfile(report_path, output / report_name)
     if acceptance is not None:
         (output / 'release-acceptance.json').write_text(json.dumps(acceptance, indent=2) + '\n')
     for name in ['minimal-runtime.json','license-review-result.json']:

@@ -219,11 +219,11 @@ be started manually. It separates these checks:
 | `portable` | Formatting, linting, policy/panel tests and release-tool checks |
 | `native` | Managed agent, browser, TLS/H2 TCP/UDP, proxy and package lifecycle |
 | `legacy` | Patched upstream regression tests |
-| `pilot` | Separate disposable Ubuntu VM legs for alpha.1 and published alpha.5/alpha.6 upgrade/guarded recovery |
+| `pilot` | Separate disposable Ubuntu VM legs for alpha.1 and published alpha.5/alpha.6/v0.1.0 upgrade/guarded recovery |
 | `minimal` | Runtime package in minimal Ubuntu without build tools |
 
 Publication runs for alpha and stable tags after all six prerequisite job families
-pass, including all three upgrade matrix legs. Stable publication additionally
+pass, including all four upgrade matrix legs. Stable publication additionally
 requires the recorded owner decision and explicit verification limits. These
 checks are separate from real-client and sustained-load acceptance. A
 [scoped alpha.6 owner check](docs/alpha6-acceptance-2026-10-21.md) covers Android

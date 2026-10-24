@@ -987,21 +987,29 @@ impl Engine {
             .filter(|u| u.policy.reset_monthly && u.next_reset_at.is_some_and(|t| t <= timestamp))
             .map(|u| (u.id.clone(), u.next_reset_at.unwrap()))
             .collect();
+        let mut first_error = None;
         for (user_id, boundary) in due {
             let period_id = calendar::period(self.timezone, timestamp)?.0;
-            self.apply_at(
-                Request {
-                    request_id: format!("monthly_{user_id}_{boundary}"),
-                    expected_revision: Some(self.revision()),
-                    command: Command::StartPeriod { user_id, period_id },
-                },
-                timestamp,
-                true,
-                None,
-            )
-            .await?;
+            if let Err(error) = self
+                .apply_at(
+                    Request {
+                        request_id: format!("monthly_{user_id}_{boundary}"),
+                        expected_revision: Some(self.revision()),
+                        command: Command::StartPeriod { user_id, period_id },
+                    },
+                    timestamp,
+                    true,
+                    None,
+                )
+                .await
+            {
+                // A per-user failure must not starve the remaining due users.
+                if first_error.is_none() {
+                    first_error = Some(error);
+                }
+            }
         }
-        Ok(())
+        first_error.map_or(Ok(()), Err)
     }
     pub fn expire(&self) {
         for user in self.users.read().unwrap().values() {

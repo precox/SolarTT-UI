@@ -22,13 +22,13 @@ patch porting, compatibility review and all release gates still apply.
    The tag must point to a commit contained in `main`. Use a canonical alpha tag such as `v0.1.0-alpha.6` or stable `v0.1.0`.
    Stable publication also requires the versioned, owner-approved acceptance
    record at `docs/releases/vVERSION-acceptance.json`.
-5. The tagged CI build runs six prerequisite gates, including alpha.1, alpha.5 and
-   alpha.6 pilot matrix legs (eight required jobs across six gate families). Only the publish job receives
+5. The tagged CI build runs six prerequisite gates, including alpha.1, alpha.5, alpha.6 and
+   published-stable pilot matrix legs (nine required jobs across six gate families). Only the publish job receives
    `contents: write`. It checks source/build/tag identity, asset checksums,
    successful prerequisites and private reporting before creating a draft.
    Uploads are verified before the draft becomes a public **prerelease** for alpha, or a stable release marked **Latest**.
-   The alpha.5 and alpha.6 upgrade reports must match both the published baseline and this
-   candidate's exact source/deb SHA256; both are attached with the historical report.
+   The alpha.5, alpha.6 and published-stable upgrade reports must match both the published baseline and this
+   candidate's exact source/deb SHA256; all are attached with the historical report.
    For agent/panel behavior changes, record [human acceptance](manual-acceptance.md)
    before authorizing publication; a prepared CI kit is not that acceptance.
 6. Check the actual Releases page, release channel, asset list and public download
@@ -68,3 +68,8 @@ filenames. The publisher checks GitHub's returned name before publication.
 `docs/releases/withdrawn.json` identifies known withdrawn releases by exact source
 commit; replacement publication preserves their assets/tag and marks them draft
 (or clearly withdrawn if the repository made that release immutable).
+
+From the v0.1.1 candidate onward, the publisher additionally verifies and attaches
+`stable-upgrade-report.json` against `upstream/upgrade-stable-pin.json` (v0.1.0).
+This adds one asset to the v0.1.0 layout; it does not alter historical releases.
+A v0.1.0 owner decision does not automatically attest new runtime changes.

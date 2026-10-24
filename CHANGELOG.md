@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.1 — Unreleased
+
+- Deny IPv4 multicast destinations in the managed adapter, including UDP.
+- Continue monthly resets for other due users when one user's period transition
+  fails; retain the failed user's quota history and report the pending error.
+- Attribute the listener regression's expected failure only after original TCP/UDP
+  streams work and the listener deadline passes; reject fixture/setup failures.
+- Add multicast/quota and multi-user rollover retry/restart regressions, plus a
+  pinned v0.1.0 package upgrade/rollback/restore leg on a disposable runner.
+- No schema, configuration-default, external-dependency or managed-patch changes.
+
 ## 0.1.0 — 2026-10-23
 
 - First stable single-node release for Ubuntu 24.04 x86_64/systemd, based on the

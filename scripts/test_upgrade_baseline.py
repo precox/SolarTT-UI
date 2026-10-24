@@ -57,6 +57,15 @@ class BaselineTests(unittest.TestCase):
         self.pin['version'] = '0.1.0-alpha.6'
         self.assertEqual(verify(self.root, self.pin), self.root / 'fixture.deb')
 
+    def test_stable_identity_does_not_accept_an_alpha_package(self):
+        self.pin['version'] = '0.1.0'
+        with self.assertRaises(ValueError):
+            verify(self.root, self.pin)
+        self.metadata['version'] = '0.1.0'
+        self.prepare()
+        self.pin['version'] = '0.1.0'
+        self.assertEqual(verify(self.root, self.pin), self.root / 'fixture.deb')
+
     def test_changed_package_or_metadata_or_manifest_is_rejected(self):
         for name in self.pin["assets_sha256"]:
             original = (self.root / name).read_bytes()

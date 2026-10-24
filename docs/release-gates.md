@@ -7,8 +7,8 @@ source/history/RustSec security scan; portable Rust and JavaScript tests; native
 transport/browser/package acceptance; upstream regressions; actual systemd VM
 upgrade/guarded recovery; and minimal Ubuntu runtime without build tools.
 
-The pilot gate requires three matrix legs on separate disposable VMs: historical
-alpha.1 migration and the published alpha.5 and alpha.6 packages → exact candidate. No
+The pilot gate requires four matrix legs on separate disposable VMs: historical
+alpha.1 migration and published alpha.5, alpha.6 and v0.1.0 packages → exact candidate. No
 leg replaces the H2 pre-fix/fixed proof or quota/revocation isolation regressions.
 
 Additional release guards require a unique canonical alpha or stable version/tag on `main`, exact
@@ -17,7 +17,7 @@ hashes, SHA256SUMS for all published assets, private vulnerability reporting,
 and complete install/manual Android/private SSH instructions. Publication creates
 a draft, uploads verified assets, then marks it as the requested release channel. Attached
 `release-tests.json`, `build.json`, `minimal-runtime.json`, `pilot-report.json`
-`alpha5-upgrade-report.json` and `alpha6-upgrade-report.json`
+`alpha5-upgrade-report.json`, `alpha6-upgrade-report.json` and `stable-upgrade-report.json`
 record the actual results. The container report is not systemd VM evidence.
 
 These gates authorize the experimental alpha; they do not close the field
