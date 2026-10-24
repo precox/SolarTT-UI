@@ -27,6 +27,18 @@ def probe():
     )
 
 
+def validate_baseline_failure(result):
+    ready = "SOLARTT_LISTENER_STREAMS_READY"
+    elapsed = "SOLARTT_LISTENER_DEADLINE_ELAPSED"
+    lost = "SOLARTT_LISTENER_ORIGINAL_STREAM_LOST:"
+    if (result.returncode != 101 or "1 failed" not in result.stdout
+            or f"{TEST} ... FAILED" not in result.stdout
+            or ready not in result.stdout or elapsed not in result.stdout
+            or lost not in result.stderr
+            or result.stdout.index(ready) > result.stdout.index(elapsed)):
+        raise ValueError("Baseline did not lose established streams after the listener deadline")
+
+
 def main():
     if (os.environ.get("GITHUB_ACTIONS") != "true"
             or os.environ.get("RUNNER_OS") != "Linux"
@@ -43,9 +55,11 @@ def main():
         source.write_bytes(baseline)
         red = probe()
         (logs / "before.log").write_text(red.stdout + red.stderr)
-        if red.returncode == 0 or "1 failed" not in red.stdout or f"{TEST} ... FAILED" not in red.stdout:
+        try:
+            validate_baseline_failure(red)
+        except ValueError as error:
             print((red.stdout + red.stderr)[-6000:], flush=True)
-            raise SystemExit("Previous implementation did not reproduce the active-stream failure")
+            raise SystemExit(str(error)) from None
         print("Previous implementation: active-stream listener timeout reproduced", flush=True)
     finally:
         source.write_bytes(fixed)
@@ -64,6 +78,7 @@ def main():
         "production_default_listener_timeout_seconds": 600,
         "quota_modes": ["limited", "unlimited"],
         "auxiliary_health_requests_or_reconnects": False,
+        "baseline_failure_phase": "established original streams after listener deadline; fixture tasks running",
         "previous_source_sha256": hashlib.sha256(baseline).hexdigest(),
         "fixed_source_sha256": hashlib.sha256(fixed).hexdigest(),
         "scope": "Isolated real TLS/H2 forwarding on a disposable GitHub runner; no production changes",

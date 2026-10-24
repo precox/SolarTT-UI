@@ -756,3 +756,125 @@ async fn rollback_refuses_policy_changes_and_wrong_keys_without_publishing_a_can
     .is_err());
     assert!(!candidate.exists());
 }
+
+#[tokio::test]
+async fn monthly_rollover_isolates_a_full_period_history_across_retries_and_restart() {
+    let retention = RetentionPolicy {
+        periods_per_user: 2,
+        ..RetentionPolicy::default()
+    };
+    let (directory, engine) = fixture(retention.clone());
+    let (a, _, basic_a) = account(&engine, Some(100)).await;
+    let (b, _, basic_b) = account(&engine, Some(100)).await;
+    engine
+        .apply(request(
+            &engine,
+            Command::StartPeriod {
+                user_id: a.clone(),
+                period_id: "manual".into(),
+            },
+        ))
+        .await
+        .unwrap();
+    for (user_id, basic, spent) in [(&a, &basic_a, 13), (&b, &basic_b, 9)] {
+        engine
+            .apply(request(
+                &engine,
+                Command::SetPolicy {
+                    user_id: user_id.clone(),
+                    policy: UserPolicy {
+                        limit_bytes: Some(100),
+                        expires_at: None,
+                        reset_monthly: true,
+                        device_limit: None,
+                    },
+                },
+            ))
+            .await
+            .unwrap();
+        let session = engine
+            .open_session(engine.authenticate(basic).unwrap())
+            .unwrap();
+        engine
+            .reserve(&session, spent, false)
+            .await
+            .unwrap()
+            .finish(spent)
+            .unwrap();
+    }
+    let before = engine.users();
+    let boundary = before
+        .iter()
+        .map(|u| u.next_reset_at.unwrap())
+        .max()
+        .unwrap();
+    let a_due = before.iter().find(|u| u.id == a).unwrap().next_reset_at;
+    let revision = engine.revision();
+    assert!(matches!(
+        engine.rollover_at(boundary).await,
+        Err(Error::PeriodLimit)
+    ));
+    let users = engine.users();
+    let failed = users.iter().find(|u| u.id == a).unwrap();
+    assert_eq!(failed.period_id, "manual");
+    assert_eq!(failed.confirmed_bytes, 13);
+    assert_eq!(failed.charged_bytes, 13);
+    assert_eq!(failed.next_reset_at, a_due);
+    let reset = users.iter().find(|u| u.id == b).unwrap();
+    let (period, next_boundary) = calendar::period(engine.timezone, boundary).unwrap();
+    assert_eq!(reset.period_id, period);
+    assert_eq!(reset.confirmed_bytes, 0);
+    assert_eq!(reset.charged_bytes, 0);
+    assert_eq!(reset.next_reset_at, Some(next_boundary));
+    assert_eq!(engine.revision(), revision + 1);
+    let session = engine
+        .open_session(engine.authenticate(&basic_b).unwrap())
+        .unwrap();
+    engine
+        .reserve(&session, 7, false)
+        .await
+        .unwrap()
+        .finish(7)
+        .unwrap();
+    drop(session);
+    assert!(matches!(
+        engine.rollover_at(boundary + 1).await,
+        Err(Error::PeriodLimit)
+    ));
+    assert_eq!(engine.revision(), revision + 1);
+    assert_eq!(
+        engine
+            .users()
+            .iter()
+            .find(|u| u.id == b)
+            .unwrap()
+            .confirmed_bytes,
+        7
+    );
+    engine.close().await.unwrap();
+    drop(engine);
+    let engine = Engine::open_with_retention(
+        &directory.path().join("policy.sqlite"),
+        [9; 32],
+        "UTC",
+        retention,
+    )
+    .unwrap();
+    assert!(matches!(
+        engine.rollover_at(boundary + 2).await,
+        Err(Error::PeriodLimit)
+    ));
+    assert_eq!(engine.revision(), revision + 1);
+    let users = engine.users();
+    let failed = users.iter().find(|u| u.id == a).unwrap();
+    assert_eq!(failed.period_id, "manual");
+    assert_eq!(failed.confirmed_bytes, 13);
+    assert_eq!(failed.next_reset_at, a_due);
+    let reset = users.iter().find(|u| u.id == b).unwrap();
+    assert_eq!(reset.period_id, period);
+    assert_eq!(reset.confirmed_bytes, 7);
+    assert_eq!(reset.charged_bytes, 7);
+    assert_eq!(reset.next_reset_at, Some(next_boundary));
+    assert_eq!(engine.storage_info().unwrap().ledger_rows, 4);
+    engine.close().await.unwrap();
+}

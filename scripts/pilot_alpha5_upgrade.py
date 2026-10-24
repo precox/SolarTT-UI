@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Published alpha.5/alpha.6 -> candidate on a disposable GitHub Ubuntu VM."""
+"""Published alpha.5/alpha.6/stable -> candidate on a disposable GitHub Ubuntu VM."""
 import argparse
 import hashlib
 import json
@@ -25,7 +25,7 @@ print(hashlib.sha256(json.dumps([doc,ledger],sort_keys=True,separators=(',',':')
 
 class Alpha5Pilot(Pilot):
     def __init__(self, baseline="alpha5"):
-        if baseline not in {"alpha5", "alpha6"}:
+        if baseline not in {"alpha5", "alpha6", "stable"}:
             raise ValueError("Unknown published baseline")
         super().__init__()
         self.baseline_id = baseline
@@ -172,7 +172,7 @@ class Alpha5Pilot(Pilot):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--baseline", choices=["alpha5", "alpha6"], default="alpha5")
+    parser.add_argument("--baseline", choices=["alpha5", "alpha6", "stable"], default="alpha5")
     args = parser.parse_args()
     require_disposable()
     pilot = Alpha5Pilot(args.baseline)

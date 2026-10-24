@@ -1,0 +1,31 @@
+{
+  "version": "0.1.1",
+  "decision": "pending_owner_acceptance",
+  "owner_accepted_limitations": false,
+  "human_acceptance": "NOT_PERFORMED",
+  "deployment": "NOT_PERFORMED",
+  "affected_flows": [
+    "IPv4 multicast destination denial; IPv4 unicast and UDP accounting regression",
+    "independent monthly rollover under a per-user period cap; retries and restart",
+    "package upgrade/rollback/restore from published v0.1.0"
+  ],
+  "unaffected_flows": {
+    "panel_ui_and_login": "No UI/login implementation changes",
+    "profile_format_and_credentials": "No format, schema, encryption or credential changes",
+    "tls_listener_runtime": "No listener/runtime patch change; only regression-test attribution tightened"
+  },
+  "network_reachability_guarantee": false,
+  "advertised_client_capacity": false,
+  "deferred_checks": {
+    "real_certificate_replacement": "Inherited v0.1.0 limitation; no actual replacement performed for this candidate.",
+    "independent_full_stack_restore": "Inherited v0.1.0 limitation; candidate CI recovery is a disposable local VM check.",
+    "capacity_benchmark": "Inherited v0.1.0 limitation; no supported client-count or throughput/loss envelope advertised."
+  },
+  "observation": {
+    "status": "NOT_PERFORMED_FOR_THIS_CANDIDATE",
+    "samples": 0,
+    "historical_baseline_record": "docs/stable-acceptance-2026-10-23.md"
+  },
+  "local_restore": "NOT_PERFORMED_FOR_THIS_CANDIDATE",
+  "acme_staging_dry_run": "NOT_PERFORMED_FOR_THIS_CANDIDATE"
+}
