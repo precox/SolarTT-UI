@@ -660,15 +660,26 @@ async fn udp_multicast_is_denied_without_charging_or_breaking_unicast() {
     tx.send_data(udp_frame(fixture.udp, b"unicast"), false)
         .unwrap();
     assert_eq!(&payload(&mut rx, 47).await[40..], b"unicast");
-    let view = fixture
-        .engine
-        .users()
-        .into_iter()
-        .find(|view| view.id == user)
-        .unwrap();
+    let view = tokio::time::timeout(Duration::from_secs(3), async {
+        loop {
+            let view = fixture
+                .engine
+                .users()
+                .into_iter()
+                .find(|view| view.id == user)
+                .unwrap();
+            if view.confirmed_bytes == 14 && view.pending_bytes == 0 {
+                break view;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("unicast accounting did not settle");
     assert_eq!(
-        view.confirmed_bytes, 14,
-        "denied datagrams consumed payload quota"
+        view.charged_bytes - view.available_lease_bytes,
+        14,
+        "denied datagrams left an uncertain durable charge"
     );
 }
 
