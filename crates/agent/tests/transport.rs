@@ -15,7 +15,6 @@ use tokio::{
 };
 use trusttunnel::{
     core::Core,
-    managed::Policy,
     settings::{Settings, TlsHostsSettings},
     shutdown::Shutdown,
 };
