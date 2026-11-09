@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "base": "051b5a9c98a2db35c8337b530e58d4d5fcf084e5",
+  "audit_database": "d9cb059f3217db87aeccd190b81eaffe8cc29cb9",
+  "before_lock_sha256": "70cd67e6067b0f99d1ee863452f219804d1d733009ec4d1b0e00ecbd6e4e069a",
+  "findings": [
+    {
+      "package": "libsqlite3-sys",
+      "version": "0.30.1",
+      "advisory": "RUSTSEC-2026-0459",
+      "patched": [
+        ">=0.39.0"
+      ]
+    }
+  ],
+  "decision": "manual",
+  "reason": "no_supported_stable_patch",
+  "target": null,
+  "identity": "e296bd46e2ef3be6c5375d1c"
+}
