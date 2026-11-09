@@ -4,10 +4,12 @@
   "owner_accepted_limitations": false,
   "human_acceptance": "NOT_PERFORMED",
   "deployment": "NOT_PERFORMED",
+  "prerelease_candidate": "v0.1.1-alpha.1",
   "affected_flows": [
     "IPv4 multicast destination denial; IPv4 unicast and UDP accounting regression",
     "independent monthly rollover under a per-user period cap; retries and restart",
-    "package upgrade/rollback/restore from published v0.1.0"
+    "package upgrade/rollback/restore from published v0.1.0",
+    "bundled SQLite security update, Rusqlite backup API and unsigned-integer conversions"
   ],
   "unaffected_flows": {
     "panel_ui_and_login": "No UI/login implementation changes",

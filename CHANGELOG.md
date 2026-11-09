@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.1 — Unreleased
+## 0.1.1-alpha.1 — 2026-11-09
 
 - Deny IPv4 multicast destinations in the managed adapter, including UDP.
 - Continue monthly resets for other due users when one user's period transition
@@ -9,7 +9,12 @@
   streams work and the listener deadline passes; reject fixture/setup failures.
 - Add multicast/quota and multi-user rollover retry/restart regressions, plus a
   pinned v0.1.0 package upgrade/rollback/restore leg on a disposable runner.
-- No schema, configuration-default, external-dependency or managed-patch changes.
+- Fix RUSTSEC-2026-0459 by updating Rusqlite to 0.41.1 and its bundled SQLite to
+  3.54.1. Preserve unsigned-integer conversions, statement caching and backup
+  support; review the exact 296-package / 544-notice redistribution inventory.
+- No schema, configuration-default or managed-patch changes. This is a prerelease;
+  current-candidate human/field acceptance remains unperformed and stable
+  v0.1.1 approval is pending. Publication does not authorize installation.
 
 ## 0.1.0 — 2026-10-23
 

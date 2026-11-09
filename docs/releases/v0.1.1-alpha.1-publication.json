@@ -1,0 +1,12 @@
+{
+  "version": "0.1.1-alpha.1",
+  "release_channel": "prerelease",
+  "decision": "publication_authorized",
+  "owner_decision_date": "2026-11-09",
+  "runtime_basis_commit": "e570e13e2b178c0cb516a62ac39d9e299f185858",
+  "runtime_basis_ci": "https://github.com/precox/SolarTT-UI/actions/runs/42703586826",
+  "human_acceptance": "NOT_PERFORMED",
+  "deployment": "NOT_PERFORMED",
+  "stable_acceptance": "PENDING",
+  "scope": "Owner explicitly selected prerelease publication of v0.1.1-alpha.1 after the SQLite security fix. Exact tagged-source CI and all publication guards remain required; this is not stable acceptance or production deployment authorization."
+}
