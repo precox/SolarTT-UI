@@ -1,0 +1,56 @@
+name: Prepare reviewed SQLite security update
+on:
+  push:
+    branches: [ci/prepare-sqlite-20261109]
+permissions:
+  contents: read
+jobs:
+  resolve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d
+        with:
+          toolchain: 1.95.0
+          components: rustfmt
+      - run: python3 scripts/prepare_upstream.py
+      - name: Resolve only the reviewed Rusqlite update without compiling
+        run: |
+          cargo update -p rusqlite --precise 0.41.1
+          cargo fmt --all
+          mkdir -p dist
+          cargo metadata --locked --format-version 1 > dist/sqlite-metadata.json
+          python3 scripts/licenses.py < dist/sqlite-metadata.json
+      - name: Export public lockfile and license evidence for manual review
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          python3 - <<'PY'
+          import base64, gzip, hashlib, json, os, textwrap
+          from pathlib import Path
+          assert os.environ.get('GITHUB_ACTIONS') == 'true'
+          assert os.environ.get('RUNNER_OS') == 'Linux'
+          root = Path.cwd()
+          old = {(p['name'], p['version']): p for p in json.loads((root/'upstream/license-review.json').read_text())['packages']}
+          manifest = json.loads((root/'dist/third-party/manifest.json').read_text())
+          assert not manifest['missing_license']
+          records, notices = [], {}
+          for p in manifest['packages']:
+              folder = root/'dist/third-party'/f"{p['name']}-{p['version']}"
+              raw = {name: (folder/name).read_bytes() for name in p['notices']}
+              hashes = {name: hashlib.sha256(data).hexdigest() for name, data in raw.items()}
+              record = {'name': p['name'], 'version': p['version'], 'declared_license': p['license'], 'notices_sha256': hashes}
+              records.append(record)
+              prior = old.get((p['name'], p['version']))
+              if prior is None or prior['declared_license'] != p['license'] or prior['notices_sha256'] != hashes:
+                  notices[f"{p['name']}-{p['version']}"] = {name: base64.b64encode(data).decode() for name, data in raw.items()}
+          formatted = {name: (root/name).read_text() for name in ('crates/policy/src/backup.rs', 'crates/policy/src/storage_tests.rs')}
+          payload = {'source': os.environ['GITHUB_SHA'], 'lockfile': (root/'Cargo.lock').read_text(), 'inventory': records, 'changed_notices': notices, 'formatted_sources': formatted}
+          encoded = base64.b64encode(gzip.compress(json.dumps(payload).encode())).decode()
+          for chunk in textwrap.wrap(encoded, 120):
+              print('SQLITE_REVIEW_CHUNK ' + chunk)
+          print('Public dependency evidence only; no build, installation, credentials or publication.')
+          PY

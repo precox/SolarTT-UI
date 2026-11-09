@@ -1,6 +1,6 @@
 //! Host administrator utilities. Backups contain encrypted credentials and remain private.
 use crate::{Engine, Error, RetentionPolicy};
-use rusqlite::{Connection, DatabaseName, OpenFlags};
+use rusqlite::{Connection, OpenFlags, MAIN_DB};
 use std::{fs::File, path::Path};
 
 fn private_parent(path: &Path) -> Result<(), Error> {
@@ -55,7 +55,11 @@ pub fn backup_database(database: &Path, destination: &Path) -> Result<(), Error>
     let parent = destination.parent().unwrap_or(Path::new("."));
     let temp = tempfile::NamedTempFile::new_in(parent)?;
     let db = source(database)?;
-    db.backup(DatabaseName::Main, temp.path(), None)?;
+    db.backup(
+        MAIN_DB,
+        temp.path(),
+        None::<fn(rusqlite::backup::Progress)>,
+    )?;
     temp.as_file().sync_all()?;
     temp.persist_noclobber(destination)
         .map_err(|e| Error::Io(e.error))?;
