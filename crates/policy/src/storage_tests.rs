@@ -1,6 +1,15 @@
 use super::*;
 use std::os::unix::fs::PermissionsExt;
 
+#[test]
+fn bundled_sqlite_includes_wal_page_size_security_fix() {
+    assert!(
+        rusqlite::version_number() >= 3_054_000,
+        "RUSTSEC-2026-0459 requires SQLite >= 3.54.0; linked {}",
+        rusqlite::version()
+    );
+}
+
 fn fixture(policy: RetentionPolicy) -> (tempfile::TempDir, Arc<Engine>) {
     let directory = tempfile::Builder::new()
         .permissions(std::fs::Permissions::from_mode(0o700))

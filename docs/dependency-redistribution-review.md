@@ -96,3 +96,51 @@ Locked resolution, full notice collection and compatibility regressions must
 pass CI before release. Updating this source lockfile does not update existing
 alpha.5 packages or installed nodes. A package release and any production
 installation remain separate reviewed operations.
+
+## SQLite security maintenance review — 2026-11-09
+
+[RUSTSEC-2026-0459](https://rustsec.org/advisories/RUSTSEC-2026-0459.html)
+affects the SQLite bundled by `libsqlite3-sys` before 0.39.0. Opening a crafted
+database and sibling WAL with different page sizes can expose uninitialized
+page-cache bytes. The fix requires a new Rusqlite minor line, so the automated
+patch policy correctly produced the report-only
+[manual task](dependency-updates/e296bd46e2ef3be6c5375d1c.json). That historical
+report is not the dependency fix.
+
+This manual update selects `rusqlite` 0.41.1 and `libsqlite3-sys` 0.39.1, bundling
+SQLite 3.54.1. Their declared minimum Rust versions, 1.89 and 1.88 respectively,
+fit the project's pinned Rust 1.95 toolchain. The enabled features remain bundled
+SQLite and backup support; `cache` and `fallible_uint` explicitly preserve the old
+statement-cache and fallible unsigned-integer conversions. Default features are
+disabled to avoid enabling the new, unused WASM SQLite backend. SQLCipher is not
+enabled. The backup call uses the new `MAIN_DB` name and a typed absent callback;
+no schema, policy JSON or quota migration is introduced by this update.
+
+The graph replaces `hashlink` 0.9.1 with 0.12.2 and adds `foldhash` 0.2.0.
+`ahash` 0.8.12 and `hashbrown` 0.14.5 become unnecessary and are removed;
+`hashbrown` 0.17.1 is reused. Existing unrelated package versions stay pinned.
+The complete inventory is now **296 packages and 544 exact notice files**.
+
+| Changed package | Selected license | Preserved notice inventory |
+| --- | --- | --- |
+| rusqlite 0.41.1 | MIT | Supplied LICENSE, including the rusqlite developers' attribution |
+| libsqlite3-sys 0.39.1 | MIT | Supplied LICENSE; the old in-crate SQLCipher source/notice is absent from the new archive |
+| hashlink 0.12.2 | MIT | Both MIT and Apache-2.0 texts, byte-identical to the earlier hashlink review |
+| foldhash 0.2.0 | Zlib | Full origin, modification-marking and notice-preservation conditions |
+
+All four archives were independently downloaded and their SHA256 values checked
+against the runner-generated Cargo.lock. Their exact declared expressions,
+notice inventories and bytes were reconciled with the runner's collector before
+updating `upstream/license-review.json`. The new Rusqlite/sys LICENSE files have
+SHA256 `c10c1f27337546471e5f7e4e97fdd398b35b9d4e126115dcd22de8d8e65abf6f`;
+the foldhash LICENSE has SHA256
+`b1181a40b2a7b25cf66fd01481713bc1005df082c53ef73e851e55071b102744`.
+SQLite's public-domain status and the requirement to preserve wrapper notices
+continue to apply. No old license text is substituted into a new package.
+
+The security gate must audit the corrected lockfile, and the runtime regression
+checks that the linked SQLite version includes the 3.54.0 fix. Policy/storage,
+backup/restore and every published-baseline upgrade/rollback gate must pass on
+disposable GitHub runners before release. Updating these sources does not update
+published packages or installed agents; release and installation remain separate
+reviewed actions.
