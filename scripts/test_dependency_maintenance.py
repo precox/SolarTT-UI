@@ -75,6 +75,28 @@ class PolicyTests(unittest.TestCase):
                 findings(data, code)
         self.assertEqual(findings(audit_report([]), 0)[1], [])
 
+    def test_sqlite_security_minor_update_remains_a_report_only_manual_task(self):
+        current = "0.30.1"
+        old_lock = OLD.replace('name = "example"', 'name = "libsqlite3-sys"').replace('version = "1.2.3"', f'version = "{current}"')
+        self.root.joinpath("Cargo.lock").write_text(old_lock)
+        reviewed = json.loads(REVIEW)
+        reviewed["packages"][0].update(name="libsqlite3-sys", version=current)
+        self.root.joinpath("upstream/license-review.json").write_text(json.dumps(reviewed))
+        observation = {"package": "libsqlite3-sys", "version": current,
+                       "advisory": "RUSTSEC-2026-0459", "patched": [">=0.39.0"]}
+        entries = {current: {"yanked": False, "cksum": "c" * 64},
+                   "0.39.1": {"yanked": False, "cksum": "d" * 64}}
+        with patch("maintain_dependencies.command") as command, \
+                patch("maintain_dependencies.review_target") as archive:
+            candidate = prepare(self.root, audit_report([observation]), 1, BASE, registry=lambda _: entries)
+        self.assertEqual(candidate["summary"]["decision"], "manual")
+        self.assertEqual(candidate["summary"]["reason"], "no_supported_stable_patch")
+        self.assertEqual(len(candidate["files"]), 1)
+        self.assertNotIn("Cargo.lock", candidate["files"])
+        validate(candidate, self.root)
+        command.assert_not_called()
+        archive.assert_not_called()
+
     def test_build_metadata_findings_produce_publishable_manual_report_without_cargo(self):
         locked = tomllib.loads((Path(__file__).resolve().parents[1] / "Cargo.lock").read_text())["package"]
         examples = [(p["name"], p["version"]) for p in locked if "+" in p["version"]]

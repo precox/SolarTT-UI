@@ -1,5 +1,5 @@
 {
-  "review_date": "2026-10-20",
+  "review_date": "2026-11-09",
   "scope": "Engineering redistribution review for first public alpha; entire resolved set, including build/test/other-platform dependencies.",
   "record": "docs/dependency-redistribution-review.md",
   "native_components": "Preserve all nested terms regardless of outer crate metadata; see record and NOTICE. No dependency relicensing.",
@@ -12,16 +12,6 @@
       "notices_sha256": {
         "LICENSE-APACHE": "b1cf9a3333ca78152b859012cd4a804156e5243e9ca20ad1df7327ba5ea7405c",
         "LICENSE-MIT": "949ab7b3e7140fee216f06fe3a2bd67d68dd511f8ea73c1e01c98cb348e9c8ae"
-      }
-    },
-    {
-      "name": "ahash",
-      "version": "0.8.12",
-      "declared_license": "MIT OR Apache-2.0",
-      "selected_license": "MIT",
-      "notices_sha256": {
-        "LICENSE-APACHE": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
-        "LICENSE-MIT": "0444c6991eead6822f7b9102e654448d51624431119546492e8b231db42c48bb"
       }
     },
     {
@@ -544,6 +534,15 @@
       }
     },
     {
+      "name": "foldhash",
+      "version": "0.2.0",
+      "declared_license": "Zlib",
+      "selected_license": "Zlib",
+      "notices_sha256": {
+        "LICENSE": "b1181a40b2a7b25cf66fd01481713bc1005df082c53ef73e851e55071b102744"
+      }
+    },
+    {
       "name": "foreign-types",
       "version": "0.5.0",
       "declared_license": "MIT/Apache-2.0",
@@ -751,16 +750,6 @@
     },
     {
       "name": "hashbrown",
-      "version": "0.14.5",
-      "declared_license": "MIT OR Apache-2.0",
-      "selected_license": "MIT",
-      "notices_sha256": {
-        "LICENSE-APACHE": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
-        "LICENSE-MIT": "ff8f68cb076caf8cefe7a6430d4ac086ce6af2ca8ce2c4e5a2004d4552ef52a2"
-      }
-    },
-    {
-      "name": "hashbrown",
       "version": "0.17.1",
       "declared_license": "MIT OR Apache-2.0",
       "selected_license": "MIT",
@@ -771,7 +760,7 @@
     },
     {
       "name": "hashlink",
-      "version": "0.9.1",
+      "version": "0.12.2",
       "declared_license": "MIT OR Apache-2.0",
       "selected_license": "MIT",
       "notices_sha256": {
@@ -1097,12 +1086,11 @@
     },
     {
       "name": "libsqlite3-sys",
-      "version": "0.30.1",
+      "version": "0.39.1",
       "declared_license": "MIT",
       "selected_license": "MIT",
       "notices_sha256": {
-        "LICENSE": "f59ba65550f2a5adff98ec6478d783402c8e0a3eb515025c0b3438f3d30dc39e",
-        "sqlcipher/LICENSE": "ea4fcb309f14a22065e1ea45362d494d320012249ed865fe9c7c0946db754131"
+        "LICENSE": "c10c1f27337546471e5f7e4e97fdd398b35b9d4e126115dcd22de8d8e65abf6f"
       }
     },
     {
@@ -1723,11 +1711,11 @@
     },
     {
       "name": "rusqlite",
-      "version": "0.32.1",
+      "version": "0.41.1",
       "declared_license": "MIT",
       "selected_license": "MIT",
       "notices_sha256": {
-        "LICENSE": "f59ba65550f2a5adff98ec6478d783402c8e0a3eb515025c0b3438f3d30dc39e"
+        "LICENSE": "c10c1f27337546471e5f7e4e97fdd398b35b9d4e126115dcd22de8d8e65abf6f"
       }
     },
     {

@@ -12,8 +12,8 @@ alpha.1 migration and published alpha.5, alpha.6 and v0.1.0 packages → exact c
 leg replaces the H2 pre-fix/fixed proof or quota/revocation isolation regressions.
 
 Additional release guards require a unique canonical alpha or stable version/tag on `main`, exact
-source/build identity, the 297-package redistribution review and 548 notice
-hashes, SHA256SUMS for all published assets, private vulnerability reporting,
+source/build identity, the versioned dependency redistribution review and every
+recorded notice hash, SHA256SUMS for all published assets, private vulnerability reporting,
 and complete install/manual Android/private SSH instructions. Publication creates
 a draft, uploads verified assets, then marks it as the requested release channel. Attached
 `release-tests.json`, `build.json`, `minimal-runtime.json`, `pilot-report.json`

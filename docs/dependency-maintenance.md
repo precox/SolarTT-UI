@@ -41,6 +41,14 @@ checksum or audit failures stop processing; no plausible-looking fix is invented
 Valid SemVer identities with `+build.metadata` are retained in audit/report data
 and also produce a manual draft; they are not selected as automatic patch targets.
 
+A report-only manual draft is an investigation task. Complete it with a concrete
+dependency change and passing CI before merging. Merging its report alone leaves
+the vulnerable lockfile unchanged and the security/audit gates red. A SQLite
+advisory requiring a new Rusqlite minor line, for example, needs a separate manual
+compatibility and license review; do not widen the automatic patch policy to
+force that update. Keep an already merged report as historical evidence and link
+the actual fix from the maintenance record.
+
 The minimum three-component comparator ranges (`>=`, `>`, `<=`, `<`, `=` with
 comma conjunctions, including prerelease bounds) are supported conservatively.
 Caret, wildcard and other expressions require manual review. Feature/minor/major
