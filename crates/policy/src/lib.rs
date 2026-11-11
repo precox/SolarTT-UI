@@ -897,6 +897,14 @@ impl Engine {
         if request.expected_revision != Some(p.document.revision) {
             return Err(Error::RevisionConflict);
         }
+        // A cancelled transport may keep a deleted LiveUser alive. Check both
+        // live and canonical membership before a checkpoint can create history.
+        // Saved receipts above remain replayable without performing new writes.
+        if state.deleted {
+            return Err(Error::NotFound);
+        }
+        let mut document = p.document.clone();
+        let u = find_user(&mut document, user_id)?;
         if state.user.period_id == *period_id && !automatic {
             return Err(Error::Invalid("Already in requested period"));
         }
@@ -910,8 +918,6 @@ impl Engine {
         state.charged -= state.available;
         state.available = 0;
         let next = p.store.ledger(user_id, period_id)?;
-        let mut document = p.document.clone();
-        let u = find_user(&mut document, user_id)?;
         u.period_id = period_id.clone();
         if automatic {
             u.next_reset_at = Some(calendar::period(self.timezone, timestamp)?.1);
@@ -1677,6 +1683,181 @@ mod tests {
             .query_row("SELECT count(*) FROM ledger WHERE user_id=?1", [&id], |r| {
                 r.get(0)
             })
+            .unwrap();
+        assert_eq!(rows, 0);
+    }
+
+    #[tokio::test]
+    async fn deleted_history_stays_removed_during_manual_period_transition() {
+        let (dir, e) = fixture();
+        let session = account(&e, None).await;
+        let id = session.identity.user_id.clone();
+        let period = request(
+            &e,
+            Command::StartPeriod {
+                user_id: id.clone(),
+                period_id: "before-delete".into(),
+            },
+        );
+        e.apply(period.clone()).await.unwrap();
+        e.reserve(&session, 42, false)
+            .await
+            .unwrap()
+            .finish(42)
+            .unwrap();
+        let delete = request(
+            &e,
+            Command::DeleteUser {
+                user_id: id.clone(),
+            },
+        );
+        let (_, complete) = e.apply(delete.clone()).await.unwrap();
+        assert!(!complete && session.is_cancelled());
+        assert!(e.users().is_empty());
+        assert_eq!(e.storage_info().unwrap().ledger_rows, 0);
+        let revision = e.revision();
+        // A saved receipt still replays while the deleted live state remains.
+        let (receipt, complete) = e.apply(period).await.unwrap();
+        assert!(receipt.replay && !complete);
+        assert_eq!(e.revision(), revision);
+        assert_eq!(e.storage_info().unwrap().ledger_rows, 0);
+        let before = e.storage_info().unwrap();
+        let result = e
+            .apply(request(
+                &e,
+                Command::StartPeriod {
+                    user_id: id.clone(),
+                    period_id: "after-delete".into(),
+                },
+            ))
+            .await;
+        assert!(matches!(result, Err(Error::NotFound)));
+        let after = e.storage_info().unwrap();
+        assert_eq!(
+            after.ledger_rows, 0,
+            "rejected period transition recreated deleted history"
+        );
+        assert_eq!(before.audit_rows, after.audit_rows);
+        assert_eq!(before.request_rows, after.request_rows);
+        assert_eq!(e.revision(), revision);
+        drop(session);
+        let (receipt, complete) = e.apply(delete).await.unwrap();
+        assert!(receipt.replay && complete);
+        assert!(!e.users.read().unwrap().contains_key(&id));
+        e.checkpoint().unwrap();
+        assert_eq!(e.storage_info().unwrap().ledger_rows, 0);
+        e.close().await.unwrap();
+        drop(e);
+        let reopened = Engine::open(&dir.path().join("policy.sqlite"), [9; 32]).unwrap();
+        assert!(reopened.users().is_empty());
+        assert_eq!(reopened.storage_info().unwrap().ledger_rows, 0);
+    }
+
+    #[tokio::test]
+    async fn deleted_history_stays_removed_during_monthly_rollover() {
+        let (dir, e) = fixture();
+        let a = account(&e, None).await;
+        let b = account(&e, None).await;
+        let c = account(&e, None).await;
+        let id = c.identity.user_id.clone();
+        for session in [&a, &b, &c] {
+            let mut policy = session.user.state.lock().unwrap().user.policy.clone();
+            policy.reset_monthly = true;
+            e.apply(request(
+                &e,
+                Command::SetPolicy {
+                    user_id: session.identity.user_id.clone(),
+                    policy,
+                },
+            ))
+            .await
+            .unwrap();
+        }
+        let timestamp = e
+            .users()
+            .iter()
+            .map(|user| user.next_reset_at.unwrap())
+            .max()
+            .unwrap()
+            + 1;
+        e.reserve(&c, 9, false).await.unwrap().finish(9).unwrap();
+        let permit = e.reserve(&a, 1, false).await.unwrap();
+        let engine = e.clone();
+        let rollover = tokio::spawn(async move { engine.rollover_at(timestamp).await });
+        tokio::time::timeout(std::time::Duration::from_secs(1), async {
+            while !a.user.state.lock().unwrap().transitioning {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+        // A holds the mutation lock while waiting for its permit. Poll the
+        // deletion once to queue it ahead of the next item in the due snapshot.
+        // A times out without changing the revision; deletion can then commit.
+        let delete = request(
+            &e,
+            Command::DeleteUser {
+                user_id: id.clone(),
+            },
+        );
+        let (_, complete) = {
+            let deletion = e.apply_inner(delete.clone(), now(), false, None);
+            tokio::pin!(deletion);
+            tokio::select! {
+                biased;
+                _ = &mut deletion => panic!("deletion overtook the pending rollover"),
+                _ = std::future::ready(()) => {},
+            }
+            deletion.await.unwrap()
+        };
+        assert!(!complete && c.is_cancelled());
+        assert!(rollover.await.unwrap().is_err()); // A's permit prevents its transition.
+        assert!(!a.is_cancelled() && !b.is_cancelled());
+        assert_eq!(e.users().len(), 2);
+        {
+            let p = e.persistent.lock().unwrap();
+            let rows: u64 = p
+                .store
+                .db
+                .query_row(
+                    "SELECT count(*) FROM ledger WHERE user_id=?1",
+                    [&id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(
+                rows, 0,
+                "automatic rollover recreated deleted history from its due snapshot"
+            );
+            let attempts: u64 = p
+                .store
+                .db
+                .query_row(
+                    "SELECT count(*) FROM audit WHERE subject=?1 AND operation='start_period'",
+                    [&id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(attempts, 0);
+        }
+        drop(c);
+        let (receipt, complete) = e.apply(delete).await.unwrap();
+        assert!(receipt.replay && complete);
+        drop(permit);
+        drop(a);
+        drop(b);
+        e.close().await.unwrap();
+        drop(e);
+        let reopened = Engine::open(&dir.path().join("policy.sqlite"), [9; 32]).unwrap();
+        let p = reopened.persistent.lock().unwrap();
+        let rows: u64 = p
+            .store
+            .db
+            .query_row(
+                "SELECT count(*) FROM ledger WHERE user_id=?1",
+                [&id],
+                |row| row.get(0),
+            )
             .unwrap();
         assert_eq!(rows, 0);
     }
