@@ -31,12 +31,12 @@ function harness(route,bootstrapReply=new Promise(()=>{})) {
     if(url==='/api/login')return response(200,{csrf:'synthetic-csrf'});
     if(url==='/api/command') {
       const req=JSON.parse(options.body);
-      if(req.command.op==='info')return applied(1,{kind:'info',info:{api_version:1,period_timezone:'UTC',capabilities:['calendar_periods','audit','audited_profile_export','bounded_storage','device_profile_limits']}});
+      if(req.command.op==='info')return applied(1,{kind:'info',info:{api_version:1,period_timezone:'UTC',capabilities:['calendar_periods','audit','audited_profile_export','bounded_storage','device_profile_limits','delete_user']}});
       if(req.command.op==='users')return applied(1,{kind:'users',users:[],next_after:null});
     }
     return route(url,options);
   }
-  const factory=new Function('document','fetch','crypto','navigator','location','btoa',source+'\nreturn {json,sendCommand,openProfile,openIssue,clearProfile,pending:()=>issueAttempt,exported:()=>exported};');
+  const factory=new Function('document','fetch','crypto','navigator','location','btoa',source+'\nreturn {json,sendCommand,openProfile,openIssue,openDelete,clearProfile,deletePending:()=>deleteAttempt,pending:()=>issueAttempt,exported:()=>exported};');
   const app=factory(document,fetch,{randomUUID:()=>`synthetic-request-${++serial}`},{},{reload(){throw new Error('Unexpected reload loses pending issuance');}},()=> 'synthetic-image');
   async function login(){element('login-form').elements.username.value='admin';element('login-form').elements.password.value='synthetic-admin-password';await element('login-form').trigger('submit');}
   async function submit(){await element('issue-form').trigger('submit');}
@@ -123,4 +123,55 @@ test('expired retry history does not allow an automatic new issuance ID',async()
   const owner={id:'owner-A',label:'Owner A',credentials:[],policy:{device_limit:2}};
   h.app.openIssue(owner);h.element('issue-label').value='Phone';await h.submit();const id=h.app.pending().request_id;
   await h.submit();assert.equal(h.app.pending().request_id,id);assert.match(h.element('issue-error').textContent,/Review existing profiles and audit history/);
+});
+test('user deletion waits for confirmation and cancel sends no mutation',async()=>{
+  let deliveries=0;const h=harness(()=>{deliveries++;return applied(2,{kind:'applied'});});
+  await h.login();
+  h.app.openDelete({id:'owner-A',label:'<img src=x>'});
+  assert.equal(h.element('delete-user-name').textContent,'<img src=x>');
+  assert.equal(h.element('delete-user').open,true);
+  await h.element('cancel-delete-user').trigger('click');
+  assert.equal(h.element('delete-user').open,false);
+  assert.equal(h.app.deletePending(),null);
+  assert.equal(deliveries,0);
+});
+for(const status of [401,403])test(`lost deletion result, ${status}, absent user and reauthentication keep the same request`,async()=>{
+  const requests=[];let calls=0;
+  const h=harness((url,options)=>{
+    if(url==='/api/logout')return response(204,{});
+    const req=JSON.parse(options.body);requests.push(req);calls++;
+    assert.equal(req.command.op,'delete_user');
+    if(calls===1)return response(503,{error:'Synthetic lost commit response'});
+    if(calls===2)return response(status,{error:status===403?'CSRF check failed':'Sign in required'});
+    return applied(2,{kind:'applied',resource_id:null});
+  });
+  await h.login();h.app.openDelete({id:'owner-A',label:'Owner A'});
+  await h.element('delete-user-form').trigger('submit');
+  assert.ok(h.app.deletePending());
+  assert.throws(()=>h.app.openDelete({id:'owner-B',label:'Owner B'}),/pending user deletion/);
+  await h.element('delete-user-form').trigger('submit');
+  assert.ok(h.app.deletePending());
+  assert.equal(h.element('delete-user').open,false);
+  await h.login();
+  assert.equal(h.element('resume-delete-user').classList.contains('hidden'),false,'pending deletion stays reachable without a user card');
+  await h.element('resume-delete-user').trigger('click');
+  await h.element('delete-user-form').trigger('submit');
+  assert.equal(requests.length,3);
+  assert.deepEqual(requests[1],requests[0]);assert.deepEqual(requests[2],requests[0]);
+  assert.equal(h.app.deletePending(),null);
+  assert.equal(h.element('delete-user').open,false);
+  assert.equal(h.element('resume-delete-user').classList.contains('hidden'),true);
+});
+test('cleanup pending retains deletion receipt and prevents duplicate submissions',async()=>{
+  const gate=deferred(),requests=[];let calls=0;
+  const h=harness((url,options)=>{requests.push(JSON.parse(options.body));return ++calls===1?gate.promise:applied(2,{kind:'applied'});});
+  await h.login();h.app.openDelete({id:'owner-A',label:'Owner A'});
+  const first=h.element('delete-user-form').trigger('submit');
+  await h.element('delete-user-form').trigger('submit');
+  assert.equal(calls,1);
+  gate.resolve(applied(2,{kind:'error',code:'cleanup_pending',message:'Synthetic pending cleanup'}));await first;
+  assert.ok(h.app.deletePending());
+  await h.element('delete-user-form').trigger('submit');
+  assert.deepEqual(requests[1],requests[0]);
+  assert.equal(h.app.deletePending(),null);
 });

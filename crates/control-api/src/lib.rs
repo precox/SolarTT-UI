@@ -22,6 +22,7 @@ pub enum Command {
     CreateUser { label: String, policy: UserPolicy },
     SetPolicy { user_id: String, policy: UserPolicy },
     BlockUser { user_id: String, blocked: bool },
+    DeleteUser { user_id: String },
     CreateCredential { user_id: String, label: String },
     RotateCredential { credential_id: String },
     RevokeCredential { credential_id: String },

@@ -488,6 +488,15 @@ async fn listener_timeout_closes_empty_and_completed_request_transports() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn real_tls_revocation_closes_a_and_preserves_b_tcp_and_udp() {
+    assert_scoped_user_removal(false).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn real_tls_deletion_closes_a_and_preserves_b_tcp_and_udp() {
+    assert_scoped_user_removal(true).await;
+}
+
+async fn assert_scoped_user_removal(delete: bool) {
     let fixture = Fixture::new().await;
     let (user_a, _, basic_a) = account(&fixture.engine, "A", None).await;
     let (_, _, basic_b) = account(&fixture.engine, "B", None).await;
@@ -514,11 +523,17 @@ async fn real_tls_revocation_closes_a_and_preserves_b_tcp_and_udp() {
     let (_, complete) = fixture
         .engine
         .apply(Request {
-            request_id: "block-a".into(),
+            request_id: "remove-a".into(),
             expected_revision: Some(fixture.engine.revision()),
-            command: Command::BlockUser {
-                user_id: user_a.clone(),
-                blocked: true,
+            command: if delete {
+                Command::DeleteUser {
+                    user_id: user_a.clone(),
+                }
+            } else {
+                Command::BlockUser {
+                    user_id: user_a.clone(),
+                    blocked: true,
+                }
             },
         })
         .await
@@ -528,16 +543,15 @@ async fn real_tls_revocation_closes_a_and_preserves_b_tcp_and_udp() {
         "policy acknowledgement preceded transport cleanup"
     );
     a.closed().await;
-    assert_eq!(
-        fixture
-            .engine
-            .users()
-            .iter()
-            .find(|u| u.id == user_a)
-            .unwrap()
-            .active_sessions,
-        0
-    );
+    let users = fixture.engine.users();
+    let removed = users.iter().find(|u| u.id == user_a);
+    if delete {
+        assert!(removed.is_none());
+        fixture.engine.checkpoint().unwrap();
+        assert_eq!(fixture.engine.storage_info().unwrap().ledger_rows, 1);
+    } else {
+        assert_eq!(removed.unwrap().active_sessions, 0);
+    }
     // The revoked user's outgoing UDP socket must have been destroyed before acknowledgement.
     let probe = UdpSocket::bind(a_udp_peer)
         .await

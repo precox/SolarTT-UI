@@ -9,6 +9,7 @@
 <section id="dashboard" class="hidden">
 <div class="heading"><div><span class="eyebrow">ACCESS MANAGEMENT</span><h1>Users & devices</h1><p class="muted">Create access, add a device, and share its connection profile.</p></div><button id="refresh" class="quiet">Refresh</button></div>
 <div id="stats" class="stats"></div>
+<button id="resume-delete-user" class="danger hidden">Resume pending user deletion</button>
 <details class="create panel"><summary>Add a user</summary>
 <form id="create-form" class="policy-fields">
 <label class="full">Display name<input name="label" maxlength="128" required></label>
@@ -23,6 +24,14 @@
 <details class="panel system-info"><summary>System status</summary><p id="storage" class="small muted"></p><p id="revision" class="small muted"></p><p class="small muted">Calendar timezone: <span id="timezone"></span></p></details>
 <details class="panel audit"><summary>Audit history</summary><div class="row"><button id="audit-refresh" class="quiet">Load latest actions</button><button id="audit-more" class="quiet" disabled>Load older actions</button></div><div class="table-wrap"><table><thead><tr><th>Time</th><th>Revision</th><th>Action</th><th>User ID</th><th>Caller UID</th><th>Profile ID</th></tr></thead><tbody id="audit-rows"></tbody></table></div></details>
 </section></main>
+<dialog id="delete-user" aria-labelledby="delete-user-title" aria-describedby="delete-user-warning">
+<h2 id="delete-user-title">Delete user permanently?</h2>
+<p id="delete-user-name"></p>
+<p id="delete-user-warning">All device profiles and traffic history will be deleted, and all connections will close. This cannot be undone. Audit records remain.</p>
+<form id="delete-user-form">
+<p id="delete-user-error" role="status" class="notice hidden"></p>
+<div class="row"><button id="cancel-delete-user" type="button" class="quiet" autofocus>Cancel</button><button id="delete-user-submit" type="submit" class="danger">Delete permanently</button></div>
+</form></dialog>
 <dialog id="issue" aria-labelledby="issue-title">
 <div class="heading"><div><span class="eyebrow">DEVICE SETUP</span><h2 id="issue-title">Add a device</h2></div><button id="cancel-issue" class="quiet" aria-label="Close device setup">Close</button></div>
 <p id="issue-owner" class="muted"></p>

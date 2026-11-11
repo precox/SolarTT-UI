@@ -43,6 +43,29 @@ and before displaying an export. Initial session discovery cannot replace a
 newer login or CSRF token. Closing/clearing a profile also invalidates its pending
 export, so late responses cannot restore fields or reopen the dialog.
 
+## Permanent user deletion
+
+**More user actions → Delete user** opens a confirmation naming the user. Confirming
+removes the user, all active/revoked device profiles and encrypted credentials,
+and every quota-period ledger row in one transaction. All of that user's TLS
+connections are cancelled. Success waits for their transport ownership and byte
+permits to release; other users retain their connections and quota. Checkpoints
+and refills cannot recreate deleted ledger rows. Deleted users stay absent after
+restart, and their old credentials and already-authenticated identities cannot
+open new sessions.
+
+The agent advertises `delete_user`; the panel shows the action only when supported.
+Unknown outcomes and `cleanup_pending` retain the original deletion request in the
+current tab. **Resume pending user deletion** also works when the user has already
+disappeared from the list or the administrator must sign in again. A retry checks
+the same receipt. Reloading/closing the tab loses this in-memory retry state.
+
+Audit events (including `delete_user`, user ID, request ID and trusted caller UID)
+and bounded retry receipts remain under their normal retention rules. They contain
+no profile secrets. Deletion is logical removal from the active database; it does
+not erase pre-existing backups, client copies, or promise forensic erasure of
+SQLite/WAL pages. Existing backups can still restore deleted users.
+
 ## Retention defaults
 
 The agent accepts an optional host-owned `[retention]` section. Example values are
@@ -82,7 +105,8 @@ contract. Inspect current policy before issuing another operation after expiry.
 
 ### Quota history
 
-Retention never deletes ledger entries. Reusing an old period restores its old
+Retention never deletes ledger entries for existing users. Explicit user deletion
+removes all ledger entries for that user. Reusing an old period restores its old
 charge, not fresh allowance. When the period cap is reached, selecting an existing
 period remains possible; creating a new period fails with `period_limit`. The
 operator can increase reviewed host limits. The cap also applies to automatic

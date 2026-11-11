@@ -211,10 +211,19 @@ try {
   const screenshot=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});
   await mkdir(join(root,'dist'),{recursive:true});
   await writeFile(join(root,'dist/panel-fixture.png'),Buffer.from(screenshot.data,'base64'));
+  await evaluate('fixtureCard().querySelector(".user-more").open=true;fixtureCard().querySelector(".delete-user").click()');
+  assert(await evaluate('document.getElementById("delete-user").open && document.getElementById("delete-user-name").textContent==='+JSON.stringify(label)+' && !document.querySelector("#delete-user img") && document.activeElement.id==="cancel-delete-user"'),'delete confirmation or safe label rendering failed');
+  await evaluate('document.getElementById("cancel-delete-user").click()');
+  assert(await evaluate('!document.getElementById("delete-user").open && !!fixtureCard()'),'cancel removed the user');
+  await evaluate('fixtureCard().querySelector(".delete-user").click();document.getElementById("delete-user-form").requestSubmit()');
+  await waitFor(async()=>await evaluate('!document.getElementById("delete-user").open && document.querySelectorAll("#users .user-card").length===1 && !fixtureCard()'),'permanent deletion');
+  await evaluate('document.getElementById("refresh").click()');
+  await waitFor(async()=>await evaluate('document.getElementById("notice").textContent==="User deleted permanently." && !fixtureCard()'),'deleted user stays absent');
+  assert(await evaluate('(async()=>{const result=await command({op:"audit",before:null});return result.entries.some(e=>e.operation==="delete_user");})()'),'deletion audit event missing');
   await evaluate('document.getElementById("logout").click()');
   await waitFor(async()=>await visible('login') && !await visible('dashboard'),'logout');
   assert(await evaluate('fetch("/api/session").then(r=>r.status===401)'),'logout session remained valid');
-  console.log('Browser reauthenticated same-key issuance, stale export rejection, manual Android setup/copy/privacy, mobile cards, device limits, revoke/reissue, HTML label and logout checks passed');
+  console.log('Browser reauthenticated same-key issuance, stale export rejection, manual Android setup/copy/privacy, mobile cards, device limits, revoke/reissue, HTML label, permanent user deletion and logout checks passed');
 } finally {
   fixture.password='';
   if (socket) socket.close();
