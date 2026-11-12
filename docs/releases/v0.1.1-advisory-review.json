@@ -1,0 +1,188 @@
+{
+  "review_date": "2026-11-12",
+  "review_kind": "scoped_applicability_analysis",
+  "assessment": "NO_AFFECTED_EXECUTION_PATH_IDENTIFIED_IN_SUPPORTED_MANAGED_MODE",
+  "reviewed_source_commit": "690b621074896cf6758f12ea5ff612f21197d82a",
+  "supported_target": "Ubuntu 24.04 x86_64; packaged managed executable with enforced endpoint validation",
+  "runtime_and_dependency_changes_in_this_review": false,
+  "warnings_suppressed": false,
+  "tokio": {
+    "advisory": "RUSTSEC-2026-0386",
+    "locked_version": "1.53.2",
+    "affected_upstream_api_present": true,
+    "location": "Pinned TrustTunnel lib/src/icmp_forwarder.rs; AsyncFd<c_int> with manual descriptor cleanup",
+    "managed_endpoint_guard": "Rejects ICMP settings and ping_enable before key/database/Core construction",
+    "core_while_icmp_disabled": "No ICMP forwarder is constructed; ICMP listener returns immediately",
+    "tls_reload_scope": "TLS hosts only; no replacement of core endpoint settings",
+    "verified_registry_callers": [
+      {
+        "name": "axum",
+        "version": "0.8.9",
+        "archive_sha256": "31b698c5f9a010f6573133b09e0de5408834d0c82f8d7475a89fc1867a71cd90",
+        "async_fd_source_mentions": []
+      },
+      {
+        "name": "h2",
+        "version": "0.4.19",
+        "archive_sha256": "ef8e5e5a340588f4452631496976cf8636d4a7ecf600239fdc27615d2530bc16",
+        "async_fd_source_mentions": []
+      },
+      {
+        "name": "hyper",
+        "version": "1.11.1",
+        "archive_sha256": "27b501faa50e7a26c3d3560ca625132f4078a17771f4810baf70475ae48cbe43",
+        "async_fd_source_mentions": []
+      },
+      {
+        "name": "hyper-util",
+        "version": "0.1.21",
+        "archive_sha256": "ddc03d96684f9226b8a787cdb71488417b53ab5ea8fdb1dac946cb9431cc8bff",
+        "async_fd_source_mentions": []
+      },
+      {
+        "name": "tokio-rustls",
+        "version": "0.26.6",
+        "archive_sha256": "c9cc2678c2cdd569ef8215e2afd7954ada2ae20b4fdd2c5fe6139a3b02d105db",
+        "async_fd_source_mentions": []
+      },
+      {
+        "name": "tokio-util",
+        "version": "0.7.19",
+        "archive_sha256": "494815d09bf52b5548659851081238f0ca39ff638363907596da739561c62c52",
+        "async_fd_source_mentions": []
+      },
+      {
+        "name": "tower",
+        "version": "0.5.3",
+        "archive_sha256": "ebe5ef63511595f1344e2d5cfa636d973292adc0eec1f0ad45fae9f0851ab1d4",
+        "async_fd_source_mentions": []
+      }
+    ],
+    "project_crates_affected_async_fd_calls": 0,
+    "runtime_source_other_than_upstream_icmp_async_fd_mentions": 0,
+    "published_binary_refusal_probe": {
+      "checked_at_utc": "2026-11-12T18:03:58.775557+00:00",
+      "candidate": "v0.1.1-alpha.1",
+      "source_commit": "690b621074896cf6758f12ea5ff612f21197d82a",
+      "package_sha256": "e2e54ee20fa441f50cfe94ff40ee094c9b5a47242ad3a6b1c0ac4356f948f6a4",
+      "agent_sha256": "5fa560c5e8a2933ed5e0f6fca843e30d15460b930cbd27230353119bce4feb45",
+      "probe_scope": "Finite unprivileged invalid-config processes; no package installation, TLS/key/profile creation, running service or network listener; no production configuration read or written",
+      "status": "PASS",
+      "cases": [
+        {
+          "case": "valid_managed_settings_missing_tls",
+          "exit_code": 1,
+          "managed_guard_rejected": false,
+          "database_key_socket_created": false,
+          "expected_result": "PASS"
+        },
+        {
+          "case": "icmp_enabled",
+          "exit_code": 1,
+          "managed_guard_rejected": true,
+          "database_key_socket_created": false,
+          "expected_result": "PASS"
+        },
+        {
+          "case": "ping_enabled",
+          "exit_code": 1,
+          "managed_guard_rejected": true,
+          "database_key_socket_created": false,
+          "expected_result": "PASS"
+        }
+      ]
+    },
+    "qualification": "No exploit attempt or full-library soundness proof. Standalone upstream ICMP is outside this cleared managed path."
+  },
+  "rustix": {
+    "advisory": "RUSTSEC-2026-0486",
+    "locked_affected_version": "1.1.5",
+    "locked_rustix_edges": [
+      {
+        "caller": "procfs",
+        "version": "0.17.0",
+        "dependency": "rustix 0.38.44"
+      },
+      {
+        "caller": "tempfile",
+        "version": "3.27.0",
+        "dependency": "rustix 1.1.5"
+      }
+    ],
+    "affected_rustix_1_1_5_only_immediate_caller": "tempfile 3.27.0",
+    "tempfile_affected_xattr_or_public_rustix_reexport_mentions": [],
+    "project_crates_affected_xattr_calls": 0,
+    "qualification": "Only reviewed exact locked dependency paths; no claim about future consumers or arbitrary Rustix APIs."
+  },
+  "verified_public_archives": [
+    {
+      "name": "tokio",
+      "version": "1.53.2",
+      "archive_sha256": "e95f91fcc7a621e8b030f6aa23c71fe9838ae2fb4d8118b75602a328f5144044",
+      "rust_version": "1.71",
+      "license": "MIT",
+      "locked_version": true
+    },
+    {
+      "name": "tokio",
+      "version": "1.53.3",
+      "archive_sha256": "ce3335fa71841cda333a58d7615b03901380ecf09d59b3296d21f8bbac0dde4e",
+      "rust_version": "1.71",
+      "license": "MIT",
+      "locked_version": false
+    },
+    {
+      "name": "rustix",
+      "version": "1.1.5",
+      "archive_sha256": "891efababe418670775f199f0d233d84843c227a0949a883ce15b37c78d6629d",
+      "rust_version": "1.65",
+      "license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
+      "locked_version": true
+    },
+    {
+      "name": "rustix",
+      "version": "1.1.6",
+      "archive_sha256": "e5e76742e5294153d4dde1207dbec5bdd81eef6fabdc0d2118babadabfd858aa",
+      "rust_version": "1.65",
+      "license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
+      "locked_version": false
+    },
+    {
+      "name": "tempfile",
+      "version": "3.27.0",
+      "archive_sha256": "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd",
+      "rust_version": "1.63",
+      "license": "MIT OR Apache-2.0",
+      "locked_version": true
+    }
+  ],
+  "separate_patch_candidates": [
+    {
+      "package": "tokio",
+      "current": "1.53.2",
+      "patched_candidate": "1.53.3",
+      "current_rust_version": "1.71",
+      "patched_rust_version": "1.71",
+      "current_license": "MIT",
+      "patched_license": "MIT",
+      "license_files_identical": true,
+      "patched_archive_sha256": "ce3335fa71841cda333a58d7615b03901380ecf09d59b3296d21f8bbac0dde4e"
+    },
+    {
+      "package": "rustix",
+      "current": "1.1.5",
+      "patched_candidate": "1.1.6",
+      "current_rust_version": "1.65",
+      "patched_rust_version": "1.65",
+      "current_license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
+      "patched_license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
+      "license_files_identical": true,
+      "patched_archive_sha256": "e5e76742e5294153d4dde1207dbec5bdd81eef6fabdc0d2118babadabfd858aa"
+    }
+  ],
+  "patch_candidate_resolution_or_ci": "NOT_PERFORMED; exact source/notice comparison only; no dependency update applied",
+  "recommendation": "Retain the tested graph for this metadata-only stable preparation, preserve warnings, and prepare a separately reviewed/tested maintenance update. Reopen this assessment if the guard, consumers, platforms or graph change.",
+  "owner_stable_publication_decision": "AUTHORIZED_WITH_DOCUMENTED_LIMITATIONS",
+  "public_record": "docs/dependency-advisory-review-2026-11-12.md",
+  "owner_stable_publication_decision_date": "2026-11-12"
+}

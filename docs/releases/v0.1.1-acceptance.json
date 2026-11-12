@@ -1,9 +1,9 @@
 {
   "version": "0.1.1",
-  "decision": "pending_owner_acceptance",
-  "owner_accepted_limitations": false,
-  "human_acceptance": "NOT_PERFORMED",
-  "deployment": "NOT_PERFORMED",
+  "decision": "accepted_with_documented_limitations",
+  "owner_accepted_limitations": true,
+  "human_acceptance": "ACCEPTED_SCOPED",
+  "deployment": "AUTHORIZED_QA_PROCESS_COHOST_ONLY; NO_PRODUCTION_PACKAGE_INSTALL",
   "prerelease_candidate": "v0.1.1-alpha.1",
   "affected_flows": [
     "IPv4 multicast destination denial; IPv4 unicast and UDP accounting regression",
@@ -19,15 +19,56 @@
   "network_reachability_guarantee": false,
   "advertised_client_capacity": false,
   "deferred_checks": {
-    "real_certificate_replacement": "Inherited v0.1.0 limitation; no actual replacement performed for this candidate.",
-    "independent_full_stack_restore": "Inherited v0.1.0 limitation; candidate CI recovery is a disposable local VM check.",
-    "capacity_benchmark": "Inherited v0.1.0 limitation; no supported client-count or throughput/loss envelope advertised."
+    "real_certificate_replacement": "Real staging DNS-01 issuance and renew --dry-run with the active staging leaf and QA reload hook passed; no actual public-certificate replacement or unattended production DNS automation was performed.",
+    "independent_full_stack_restore": "Matching-key local QA database restore and saved-profile access passed; recovery of the complete stack on another host after source-host loss remains unverified.",
+    "capacity_benchmark": "Owner accepted 20h39m of light synthetic observation instead of the planned 24h. No concurrent-client limit, supported throughput, UDP-loss envelope or disk-sync capacity is advertised."
   },
   "observation": {
-    "status": "NOT_PERFORMED_FOR_THIS_CANDIDATE",
-    "samples": 0,
-    "historical_baseline_record": "docs/stable-acceptance-2026-10-23.md"
+    "status": "complete",
+    "verdict": "PASS",
+    "completion_basis": "owner_accepted_shortened_observation",
+    "started_at_utc": "2026-11-11T20:54:06.276569+00:00",
+    "last_sample_at_utc": "2026-11-12T17:33:07.266722+00:00",
+    "finished_at_utc": "2026-11-12T17:33:10.728735+00:00",
+    "duration_seconds": 74340.001,
+    "original_planned_duration_seconds": 86400,
+    "original_24h_target_met": false,
+    "owner_accepted_shortened_duration": true,
+    "owner_duration_decision_date": "2026-11-12",
+    "samples": 1240,
+    "local_health_failures": 0,
+    "collection_errors": 0,
+    "periodic_tcp_udp_probes": 248,
+    "periodic_tcp_udp_failures": 0,
+    "additional_final_tcp_udp_probe": "PASS",
+    "agent_restarts": 0,
+    "panel_restarts": 0,
+    "oom_events": 0,
+    "scope": "Owner-accepted 20h39m loopback-only shared-host QA observation; light synthetic traffic and local health. No 24-hour, capacity, continuous-owner-traffic or production-deployment claim."
   },
-  "local_restore": "NOT_PERFORMED_FOR_THIS_CANDIDATE",
-  "acme_staging_dry_run": "NOT_PERFORMED_FOR_THIS_CANDIDATE"
+  "local_restore": "PASS",
+  "acme_staging_dry_run": "PASS",
+  "runtime_basis": {
+    "tag": "v0.1.1-alpha.1",
+    "source_commit": "690b621074896cf6758f12ea5ff612f21197d82a",
+    "package_sha256": "e2e54ee20fa441f50cfe94ff40ee094c9b5a47242ad3a6b1c0ac4356f948f6a4",
+    "tagged_ci": "https://github.com/precox/SolarTT-UI/actions/runs/42709401124",
+    "candidate_delta": "Version metadata and acceptance/release documentation only; no runtime logic, dependencies, configuration defaults, schema or managed patch changes"
+  },
+  "supported_runtime": "Ubuntu 24.04, Linux x86_64, systemd",
+  "public_record": "docs/stable-acceptance-2026-11-12.md",
+  "checks_record": "docs/releases/v0.1.1-candidate-checks.json",
+  "publication_authorized": true,
+  "dependency_advisory_review": {
+    "status": "COMPLETED_SCOPED",
+    "assessment": "NO_AFFECTED_EXECUTION_PATH_IDENTIFIED_IN_SUPPORTED_MANAGED_MODE",
+    "record": "docs/dependency-advisory-review-2026-11-12.md",
+    "data": "docs/releases/v0.1.1-advisory-review.json",
+    "warnings_retained": true,
+    "dependency_updates_applied": false
+  },
+  "owner_decision_date": "2026-11-12",
+  "owner_decision_recorded_at_utc": "2026-11-12T19:03:48.425115+00:00",
+  "production_installation_authorized": false,
+  "publication_scope": "Stable v0.1.1 GitHub release only, after reviewed source and full exact-tag CI; no live-server installation, restart or configuration change"
 }

@@ -1,6 +1,6 @@
 # Release publication and stable acceptance
 
-## First public alpha: required publication gates
+## Required publication gates
 
 The tagged release workflow must pass all six prerequisites before it can publish:
 source/history/RustSec security scan; portable Rust and JavaScript tests; native
@@ -8,8 +8,10 @@ transport/browser/package acceptance; upstream regressions; actual systemd VM
 upgrade/guarded recovery; and minimal Ubuntu runtime without build tools.
 
 The pilot gate requires four matrix legs on separate disposable VMs: historical
-alpha.1 migration and published alpha.5, alpha.6 and v0.1.0 packages → exact candidate. No
-leg replaces the H2 pre-fix/fixed proof or quota/revocation isolation regressions.
+alpha.1 migration and published alpha.5, alpha.6 and the pinned stable package →
+exact candidate. The stable pin is v0.1.1 for post-v0.1.1 candidates; historical
+reports retain the baseline recorded in their tagged source. No leg replaces the
+H2 pre-fix/fixed proof or quota/revocation isolation regressions.
 
 Additional release guards require a unique canonical alpha or stable version/tag on `main`, exact
 source/build identity, the versioned dependency redistribution review and every
@@ -108,3 +110,25 @@ replacement. CPU/RSS point/observation values do not close the capacity gate.
 Direct network availability is outside the release guarantee; no censorship
 resistance is claimed. These limits are public in README and release notes.
 The complete exact-candidate CI and all artifact/security checks still apply.
+
+## v0.1.1 owner decision, 2026-11-12
+
+The [v0.1.1 candidate acceptance record](v0.1.1-candidate-acceptance-2026-11-12.md)
+and [machine-readable summary](releases/v0.1.1-candidate-checks.json) bind the
+functional, local restore, staging ACME and observation results to the published
+`v0.1.1-alpha.1` source/package. Stable preparation changes only version metadata
+and documentation from that tested runtime; new exact-source/tag CI is required.
+
+The owner accepted a shortened **20 h 39 min** observation in place of the planned
+24 hours: 1,240 samples, 248 periodic TCP/UDP probes plus a final probe, with zero
+health/collection/probe failures, restarts or OOM events. This was loopback-only
+shared-host QA under light synthetic load, not a completed 24-hour capacity test.
+Temporary QA state and test DNS were removed; production identity/configuration
+guards remained unchanged.
+
+The owner separately authorized stable publication with documented limitations
+on 12 November; see the [accepted scope](stable-acceptance-2026-11-12.md) and
+[v0.1.1 decision](releases/v0.1.1-acceptance.json). Exact tagged-source CI and
+public-asset verification remain mandatory.
+Capacity, independent full-stack restore and actual public-certificate replacement
+remain deferred, not PASS. No network-reachability guarantee is introduced.

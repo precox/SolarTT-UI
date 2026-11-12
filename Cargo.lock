@@ -2018,7 +2018,7 @@ dependencies = [
 
 [[package]]
 name = "solartt-admin"
-version = "0.1.1-alpha.1"
+version = "0.1.2-alpha.1"
 dependencies = [
  "libc",
  "rand",
@@ -2028,7 +2028,7 @@ dependencies = [
 
 [[package]]
 name = "solartt-agent"
-version = "0.1.1-alpha.1"
+version = "0.1.2-alpha.1"
 dependencies = [
  "async-trait",
  "base64 0.21.7",
@@ -2055,7 +2055,7 @@ dependencies = [
 
 [[package]]
 name = "solartt-control-api"
-version = "0.1.1-alpha.1"
+version = "0.1.2-alpha.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -2063,7 +2063,7 @@ dependencies = [
 
 [[package]]
 name = "solartt-panel"
-version = "0.1.1-alpha.1"
+version = "0.1.2-alpha.1"
 dependencies = [
  "argon2",
  "axum",
@@ -2082,7 +2082,7 @@ dependencies = [
 
 [[package]]
 name = "solartt-policy"
-version = "0.1.1-alpha.1"
+version = "0.1.2-alpha.1"
 dependencies = [
  "base64 0.21.7",
  "chacha20poly1305",
@@ -2106,7 +2106,7 @@ dependencies = [
 
 [[package]]
 name = "solartt-profile-export"
-version = "0.1.1-alpha.1"
+version = "0.1.2-alpha.1"
 dependencies = [
  "qrcode",
  "serde",

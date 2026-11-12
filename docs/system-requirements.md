@@ -2,7 +2,7 @@
 
 ## Supported runtime
 
-The v0.1.0 package targets **Ubuntu 24.04, Linux x86_64, systemd**.
+The v0.1.1 package targets **Ubuntu 24.04, Linux x86_64, systemd**.
 Other distributions/architectures have not passed package acceptance. Install
 tested CI binaries on the node; Rust, CMake, libclang, Node and Chromium are not
 runtime dependencies of the packaged panel/agent. Browser acceptance runs in CI;

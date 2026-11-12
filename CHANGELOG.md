@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.1.2-alpha.1 — Unreleased
+
+- Add permanent user deletion with a named confirmation, scoped TLS/TCP/UDP
+  cleanup and atomic removal of profiles and all quota periods. Audit records
+  and bounded retry receipts retain their normal retention rules.
+- Preserve the original deletion request across unknown responses, refresh and
+  administrator reauthentication, including when the user card has disappeared.
+- Reject period transitions before they can recreate a deleted user's ledger;
+  cover manual reset, concurrent calendar rollover, retries and restart.
+- Base the development candidate on published stable v0.1.1 and pin its verified
+  package for the stable upgrade/rollback/restore pilot. Dependencies, schema and
+  configuration defaults are unchanged. See [candidate notes](docs/releases/v0.1.2-alpha.1.md).
+
+## 0.1.1 — 2026-11-12
+
+- Prepare stable version metadata from the unchanged `v0.1.1-alpha.1` runtime.
+  No runtime, dependency, schema, configuration-default or managed-patch changes
+  are introduced by this preparation.
+- Record scoped Android acceptance, quota/revoke-A with original B continuity,
+  matching-key local restore, and staging DNS-01 issuance/renewal with a QA TLS
+  reload hook.
+- Record the owner's accepted shortened observation: 20 h 39 min, 1,240 samples,
+  248 periodic TCP/UDP probes and a final probe, with no errors, restarts or OOM.
+  The originally planned 24 hours were not completed. Temporary QA state was
+  removed without changing production identities/configuration.
+- The owner authorized stable publication with documented limitations on
+  2026-11-12. Capacity, independent full-stack recovery and actual public-certificate
+  replacement remain unverified; network reachability is not guaranteed.
+  Full exact-tag CI and public-asset verification remain required before release.
+
 ## 0.1.1-alpha.1 — 2026-11-09
 
 - Deny IPv4 multicast destinations in the managed adapter, including UDP.

@@ -69,7 +69,9 @@ filenames. The publisher checks GitHub's returned name before publication.
 commit; replacement publication preserves their assets/tag and marks them draft
 (or clearly withdrawn if the repository made that release immutable).
 
-From the v0.1.1 candidate onward, the publisher additionally verifies and attaches
-`stable-upgrade-report.json` against `upstream/upgrade-stable-pin.json` (v0.1.0).
-This adds one asset to the v0.1.0 layout; it does not alter historical releases.
-A v0.1.0 owner decision does not automatically attest new runtime changes.
+The publisher verifies `stable-upgrade-report.json` against the exact
+`upstream/upgrade-stable-pin.json` in the tagged source. Post-v0.1.1 candidates
+pin the published v0.1.1 package; the historical v0.1.1 release tested an upgrade
+from its own pinned v0.1.0 baseline. Updating the candidate pin does not change
+historical tags or assets. A prior owner decision does not attest later runtime
+changes, including the permanent-deletion flow in the 0.1.2-alpha.1 candidate.
