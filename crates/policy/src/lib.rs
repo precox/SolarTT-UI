@@ -132,6 +132,7 @@ struct LiveState {
     pending: u64,
     sessions: Vec<Weak<Session>>,
     transitioning: bool,
+    deleted: bool,
 }
 struct LiveUser {
     state: Mutex<LiveState>,
@@ -245,6 +246,7 @@ impl Engine {
                         pending: 0,
                         sessions: vec![],
                         transitioning: false,
+                        deleted: false,
                     }),
                     changed: Notify::new(),
                 }),
@@ -286,17 +288,26 @@ impl Engine {
     }
     fn pending_cleanup(&self) -> bool {
         self.users.read().unwrap().values().any(|user| {
-            user.state
-                .lock()
-                .unwrap()
-                .sessions
-                .iter()
-                .filter_map(Weak::upgrade)
-                .any(|s| s.is_cancelled())
+            let state = user.state.lock().unwrap();
+            (state.deleted && state.pending > 0)
+                || state
+                    .sessions
+                    .iter()
+                    .filter_map(Weak::upgrade)
+                    .any(|s| s.is_cancelled())
         })
+    }
+    fn prune_deleted(&self) {
+        self.users.write().unwrap().retain(|_, user| {
+            let state = user.state.lock().unwrap();
+            !state.deleted
+                || state.pending > 0
+                || state.sessions.iter().any(|s| s.strong_count() > 0)
+        });
     }
     pub fn reconcile_applied(&self) {
         if let Ok(_serial) = self.mutations.try_lock() {
+            self.prune_deleted();
             if !self.pending_cleanup() {
                 self.applied.store(self.revision(), Ordering::Release);
             }
@@ -414,8 +425,11 @@ impl Engine {
         let users = self.users.read().unwrap();
         let mut result: Vec<_> = users
             .values()
-            .map(|user| {
+            .filter_map(|user| {
                 let mut s = user.state.lock().unwrap();
+                if s.deleted {
+                    return None;
+                }
                 s.sessions.retain(|x| x.strong_count() > 0);
                 let credentials = s
                     .user
@@ -435,7 +449,7 @@ impl Engine {
                             .count(),
                     })
                     .collect();
-                UserView {
+                Some(UserView {
                     id: s.user.id.clone(),
                     label: s.user.label.clone(),
                     policy: s.user.policy.clone(),
@@ -448,7 +462,7 @@ impl Engine {
                     pending_bytes: s.pending,
                     active_sessions: s.sessions.len(),
                     credentials,
-                }
+                })
             })
             .collect();
         result.sort_by(|a, b| a.id.cmp(&b.id));
@@ -546,6 +560,13 @@ impl Engine {
             return Err(Error::Invalid("Invalid mutation"));
         }
         let fingerprint = hex::encode(Sha256::digest(serde_json::to_vec(&request.command)?));
+        // Ledger writers lock live state before storage. Hold the same lock across
+        // deletion so a concurrent checkpoint/refill cannot recreate deleted rows.
+        let deleted_user = match &request.command {
+            Command::DeleteUser { user_id } => self.users.read().unwrap().get(user_id).cloned(),
+            _ => None,
+        };
+        let mut deletion = deleted_user.as_ref().map(|user| user.state.lock().unwrap());
         let mut p = self.persistent.lock().unwrap();
         if let Some(previous) = p.store.previous(&request.request_id, &fingerprint)? {
             return Ok(previous);
@@ -624,6 +645,12 @@ impl Engine {
                 find_user(&mut document, id)?.blocked = *blocked;
                 user_id = Some(id.clone());
                 operation = "block_user";
+            }
+            Command::DeleteUser { user_id: id } => {
+                find_user(&mut document, id)?;
+                document.users.retain(|user| user.id != *id);
+                user_id = Some(id.clone());
+                operation = "delete_user";
             }
             Command::CreateCredential { user_id: id, label } => {
                 validate_label(label)?;
@@ -710,7 +737,16 @@ impl Engine {
             },
         )?;
         p.document = document.clone();
+        if let Some(state) = deletion.as_mut() {
+            state.deleted = true;
+            state.user.credentials.clear();
+            state.cancel_all();
+        }
         drop(p);
+        drop(deletion);
+        if let Some(user) = deleted_user {
+            user.changed.notify_waiters();
+        }
         self.apply_document(&document)?;
         self.refresh_auth()?;
         Ok(Mutation {
@@ -818,6 +854,7 @@ impl Engine {
         } else {
             true
         };
+        self.prune_deleted();
         if complete && !self.pending_cleanup() {
             self.applied.store(self.revision(), Ordering::Release);
         }
@@ -860,6 +897,14 @@ impl Engine {
         if request.expected_revision != Some(p.document.revision) {
             return Err(Error::RevisionConflict);
         }
+        // A cancelled transport may keep a deleted LiveUser alive. Check both
+        // live and canonical membership before a checkpoint can create history.
+        // Saved receipts above remain replayable without performing new writes.
+        if state.deleted {
+            return Err(Error::NotFound);
+        }
+        let mut document = p.document.clone();
+        let u = find_user(&mut document, user_id)?;
         if state.user.period_id == *period_id && !automatic {
             return Err(Error::Invalid("Already in requested period"));
         }
@@ -873,8 +918,6 @@ impl Engine {
         state.charged -= state.available;
         state.available = 0;
         let next = p.store.ledger(user_id, period_id)?;
-        let mut document = p.document.clone();
-        let u = find_user(&mut document, user_id)?;
         u.period_id = period_id.clone();
         if automatic {
             u.next_reset_at = Some(calendar::period(self.timezone, timestamp)?.1);
@@ -936,6 +979,7 @@ impl Engine {
                             pending: 0,
                             sessions: vec![],
                             transitioning: false,
+                            deleted: false,
                         }),
                         changed: Notify::new(),
                     }),
@@ -954,22 +998,25 @@ impl Engine {
             let Some(user) = user else {
                 return true;
             };
-            let remaining = user
-                .state
-                .lock()
-                .unwrap()
-                .sessions
-                .iter()
-                .filter_map(Weak::upgrade)
-                .any(|s| s.is_cancelled());
+            let user_notification = user.changed.notified();
+            tokio::pin!(user_notification);
+            user_notification.as_mut().enable();
+            let remaining = {
+                let state = user.state.lock().unwrap();
+                (state.deleted && state.pending > 0)
+                    || state
+                        .sessions
+                        .iter()
+                        .filter_map(Weak::upgrade)
+                        .any(|s| s.is_cancelled())
+            };
             if !remaining {
                 return true;
             }
-            if tokio::time::timeout_at(deadline, notification)
-                .await
-                .is_err()
-            {
-                return false;
+            tokio::select! {
+                _ = notification => {},
+                _ = user_notification => {},
+                _ = tokio::time::sleep_until(deadline) => return false,
             }
         }
     }
@@ -1024,6 +1071,9 @@ impl Engine {
         // Lock order: live user -> database for ledger operations. Metadata never holds DB during live updates.
         for user in users {
             let state = user.state.lock().unwrap();
+            if state.deleted {
+                continue;
+            }
             self.persistent.lock().unwrap().store.checkpoint(
                 &state.user.id,
                 &state.user.period_id,
@@ -1043,6 +1093,9 @@ impl Engine {
             .cloned()
             .ok_or(Error::NotFound)?;
         let mut state = user.state.lock().unwrap();
+        if state.deleted {
+            return Ok(());
+        }
         if !state.transitioning || state.pending != 0 {
             return Err(Error::Invalid("User is not quiescent"));
         }
@@ -1247,7 +1300,8 @@ impl LiveState {
             .is_some_and(|l| self.charged >= l && self.available == 0 && self.pending == 0)
     }
     fn permitted(&self) -> bool {
-        !self.user.blocked
+        !self.deleted
+            && !self.user.blocked
             && self.user.policy.expires_at.is_none_or(|t| t > now())
             && !self.exhausted()
     }
@@ -1509,6 +1563,405 @@ mod tests {
         let s = e.users();
         assert!(s[0].available_lease_bytes + s[0].pending_bytes <= LEASE_BYTES);
     }
+    #[tokio::test]
+    async fn deletion_removes_profiles_and_all_periods_but_preserves_other_users() {
+        let (dir, e) = fixture();
+        let a = account(&e, None).await;
+        let b = account(&e, None).await;
+        let id = a.identity.user_id.clone();
+        let identity = a.identity.clone();
+        let credential = a.identity.credential_id.clone();
+        let (username, password, _) = e.export_credential(&credential).unwrap();
+        let basic = STANDARD.encode(format!("{username}:{}", password.as_str()));
+        let extra = e
+            .apply(request(
+                &e,
+                Command::CreateCredential {
+                    user_id: id.clone(),
+                    label: "Revoked device".into(),
+                },
+            ))
+            .await
+            .unwrap()
+            .0
+            .resource_id
+            .unwrap();
+        e.apply(request(
+            &e,
+            Command::RevokeCredential {
+                credential_id: extra.clone(),
+            },
+        ))
+        .await
+        .unwrap();
+        e.reserve(&a, 7, false).await.unwrap().finish(7).unwrap();
+        e.apply(request(
+            &e,
+            Command::StartPeriod {
+                user_id: id.clone(),
+                period_id: "second".into(),
+            },
+        ))
+        .await
+        .unwrap();
+        e.reserve(&b, 11, false).await.unwrap().finish(11).unwrap();
+        let mut pending = e.reserve(&a, 3, false).await.unwrap();
+        pending.begin();
+        let req = request(
+            &e,
+            Command::DeleteUser {
+                user_id: id.clone(),
+            },
+        );
+        let worker = e.clone();
+        let deletion = req.clone();
+        let task = tokio::spawn(async move { worker.apply_as(deletion, 1234).await });
+        tokio::time::timeout(std::time::Duration::from_secs(1), a.cancelled())
+            .await
+            .unwrap();
+        assert!(!task.is_finished(), "ack must wait for transport ownership");
+        assert!(e.applied_revision() < e.revision());
+        assert_eq!(e.users().len(), 1);
+        assert!(!b.is_cancelled());
+        assert_eq!(e.users()[0].confirmed_bytes, 11);
+        assert!(e.authenticate(&basic).is_none());
+        assert!(e.open_session(identity).is_err());
+        assert!(e.export_credential(&credential).is_err());
+        assert!(e.export_credential(&extra).is_err());
+        assert!(e.reserve(&a, 1, false).await.is_err());
+        assert!(e.refill(a.user.clone()).await.is_err());
+        // A background checkpoint while cancelled sessions/permits still exist
+        // must not recreate the deleted user's history.
+        e.checkpoint().unwrap();
+        {
+            let p = e.persistent.lock().unwrap();
+            let rows: u64 = p
+                .store
+                .db
+                .query_row("SELECT count(*) FROM ledger WHERE user_id=?1", [&id], |r| {
+                    r.get(0)
+                })
+                .unwrap();
+            assert_eq!(rows, 0);
+            assert!(!serde_json::to_string(&p.document).unwrap().contains(&id));
+        }
+        drop(a);
+        assert!(
+            !task.is_finished(),
+            "ack must also wait for outstanding byte permits"
+        );
+        pending.finish(3).unwrap();
+        let (mutation, complete) = task.await.unwrap().unwrap();
+        assert!(complete);
+        assert_eq!(mutation.revision, e.applied_revision());
+        assert!(!e.users.read().unwrap().contains_key(&id));
+        e.reserve(&b, 5, false).await.unwrap().finish(5).unwrap();
+        let audit = e.audit(None).unwrap();
+        let deleted: Vec<_> = audit
+            .iter()
+            .filter(|a| a.operation == "delete_user")
+            .collect();
+        assert_eq!(deleted.len(), 1);
+        assert_eq!(deleted[0].subject.as_deref(), Some(id.as_str()));
+        assert_eq!(deleted[0].actor_uid, Some(1234));
+        let revision = e.revision();
+        assert!(e.apply(req.clone()).await.unwrap().0.replay);
+        assert_eq!(e.revision(), revision);
+        drop(b);
+        e.close().await.unwrap();
+        drop(e);
+        let reopened = Engine::open(&dir.path().join("policy.sqlite"), [9; 32]).unwrap();
+        assert_eq!(reopened.users().len(), 1);
+        assert_eq!(reopened.users()[0].confirmed_bytes, 16);
+        assert!(reopened.authenticate(&basic).is_none());
+        assert!(reopened.export_credential(&credential).is_err());
+        assert!(reopened.apply(req).await.unwrap().0.replay);
+        let p = reopened.persistent.lock().unwrap();
+        let rows: u64 = p
+            .store
+            .db
+            .query_row("SELECT count(*) FROM ledger WHERE user_id=?1", [&id], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(rows, 0);
+    }
+
+    #[tokio::test]
+    async fn deleted_history_stays_removed_during_manual_period_transition() {
+        let (dir, e) = fixture();
+        let session = account(&e, None).await;
+        let id = session.identity.user_id.clone();
+        let period = request(
+            &e,
+            Command::StartPeriod {
+                user_id: id.clone(),
+                period_id: "before-delete".into(),
+            },
+        );
+        e.apply(period.clone()).await.unwrap();
+        e.reserve(&session, 42, false)
+            .await
+            .unwrap()
+            .finish(42)
+            .unwrap();
+        let delete = request(
+            &e,
+            Command::DeleteUser {
+                user_id: id.clone(),
+            },
+        );
+        let (_, complete) = e.apply(delete.clone()).await.unwrap();
+        assert!(!complete && session.is_cancelled());
+        assert!(e.users().is_empty());
+        assert_eq!(e.storage_info().unwrap().ledger_rows, 0);
+        let revision = e.revision();
+        // A saved receipt still replays while the deleted live state remains.
+        let (receipt, complete) = e.apply(period).await.unwrap();
+        assert!(receipt.replay && !complete);
+        assert_eq!(e.revision(), revision);
+        assert_eq!(e.storage_info().unwrap().ledger_rows, 0);
+        let before = e.storage_info().unwrap();
+        let result = e
+            .apply(request(
+                &e,
+                Command::StartPeriod {
+                    user_id: id.clone(),
+                    period_id: "after-delete".into(),
+                },
+            ))
+            .await;
+        assert!(matches!(result, Err(Error::NotFound)));
+        let after = e.storage_info().unwrap();
+        assert_eq!(
+            after.ledger_rows, 0,
+            "rejected period transition recreated deleted history"
+        );
+        assert_eq!(before.audit_rows, after.audit_rows);
+        assert_eq!(before.request_rows, after.request_rows);
+        assert_eq!(e.revision(), revision);
+        drop(session);
+        let (receipt, complete) = e.apply(delete).await.unwrap();
+        assert!(receipt.replay && complete);
+        assert!(!e.users.read().unwrap().contains_key(&id));
+        e.checkpoint().unwrap();
+        assert_eq!(e.storage_info().unwrap().ledger_rows, 0);
+        e.close().await.unwrap();
+        drop(e);
+        let reopened = Engine::open(&dir.path().join("policy.sqlite"), [9; 32]).unwrap();
+        assert!(reopened.users().is_empty());
+        assert_eq!(reopened.storage_info().unwrap().ledger_rows, 0);
+    }
+
+    #[tokio::test]
+    async fn deleted_history_stays_removed_during_monthly_rollover() {
+        let (dir, e) = fixture();
+        let a = account(&e, None).await;
+        let b = account(&e, None).await;
+        let c = account(&e, None).await;
+        let id = c.identity.user_id.clone();
+        for session in [&a, &b, &c] {
+            let mut policy = session.user.state.lock().unwrap().user.policy.clone();
+            policy.reset_monthly = true;
+            e.apply(request(
+                &e,
+                Command::SetPolicy {
+                    user_id: session.identity.user_id.clone(),
+                    policy,
+                },
+            ))
+            .await
+            .unwrap();
+        }
+        let timestamp = e
+            .users()
+            .iter()
+            .map(|user| user.next_reset_at.unwrap())
+            .max()
+            .unwrap()
+            + 1;
+        e.reserve(&c, 9, false).await.unwrap().finish(9).unwrap();
+        let permit = e.reserve(&a, 1, false).await.unwrap();
+        let engine = e.clone();
+        let rollover = tokio::spawn(async move { engine.rollover_at(timestamp).await });
+        tokio::time::timeout(std::time::Duration::from_secs(1), async {
+            while !a.user.state.lock().unwrap().transitioning {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+        // A holds the mutation lock while waiting for its permit. Poll the
+        // deletion once to queue it ahead of the next item in the due snapshot.
+        // A times out without changing the revision; deletion can then commit.
+        let delete = request(
+            &e,
+            Command::DeleteUser {
+                user_id: id.clone(),
+            },
+        );
+        let (_, complete) = {
+            let deletion = e.apply_inner(delete.clone(), now(), false, None);
+            tokio::pin!(deletion);
+            tokio::select! {
+                biased;
+                _ = &mut deletion => panic!("deletion overtook the pending rollover"),
+                _ = std::future::ready(()) => {},
+            }
+            deletion.await.unwrap()
+        };
+        assert!(!complete && c.is_cancelled());
+        assert!(rollover.await.unwrap().is_err()); // A's permit prevents its transition.
+        assert!(!a.is_cancelled() && !b.is_cancelled());
+        assert_eq!(e.users().len(), 2);
+        {
+            let p = e.persistent.lock().unwrap();
+            let rows: u64 = p
+                .store
+                .db
+                .query_row(
+                    "SELECT count(*) FROM ledger WHERE user_id=?1",
+                    [&id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(
+                rows, 0,
+                "automatic rollover recreated deleted history from its due snapshot"
+            );
+            let attempts: u64 = p
+                .store
+                .db
+                .query_row(
+                    "SELECT count(*) FROM audit WHERE subject=?1 AND operation='start_period'",
+                    [&id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(attempts, 0);
+        }
+        drop(c);
+        let (receipt, complete) = e.apply(delete).await.unwrap();
+        assert!(receipt.replay && complete);
+        drop(permit);
+        drop(a);
+        drop(b);
+        e.close().await.unwrap();
+        drop(e);
+        let reopened = Engine::open(&dir.path().join("policy.sqlite"), [9; 32]).unwrap();
+        let p = reopened.persistent.lock().unwrap();
+        let rows: u64 = p
+            .store
+            .db
+            .query_row(
+                "SELECT count(*) FROM ledger WHERE user_id=?1",
+                [&id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(rows, 0);
+    }
+
+    #[tokio::test]
+    async fn deletion_failure_rolls_back_document_history_receipt_and_runtime() {
+        let (_dir, e) = fixture();
+        let a = account(&e, None).await;
+        let id = a.identity.user_id.clone();
+        e.reserve(&a, 9, false).await.unwrap().finish(9).unwrap();
+        e.checkpoint().unwrap();
+        let req = request(
+            &e,
+            Command::DeleteUser {
+                user_id: id.clone(),
+            },
+        );
+        let revision = e.revision();
+        let before = e.storage_info().unwrap();
+        e.persistent.lock().unwrap().store.db.execute_batch(
+            "CREATE TRIGGER reject_deletion BEFORE DELETE ON ledger BEGIN SELECT RAISE(ABORT, 'synthetic storage failure'); END;"
+        ).unwrap();
+        assert!(matches!(e.apply(req.clone()).await, Err(Error::Storage(_))));
+        assert_eq!(e.revision(), revision);
+        assert_eq!(e.users().len(), 1);
+        assert!(!a.is_cancelled());
+        assert!(e.export_credential(&a.identity.credential_id).is_ok());
+        let after = e.storage_info().unwrap();
+        assert_eq!(before.ledger_rows, after.ledger_rows);
+        assert_eq!(before.audit_rows, after.audit_rows);
+        assert_eq!(before.request_rows, after.request_rows);
+        e.reserve(&a, 1, false).await.unwrap().finish(1).unwrap();
+        e.persistent
+            .lock()
+            .unwrap()
+            .store
+            .db
+            .execute_batch("DROP TRIGGER reject_deletion")
+            .unwrap();
+        let mut stale = req.clone();
+        stale.expected_revision = Some(revision - 1);
+        assert!(matches!(e.apply(stale).await, Err(Error::RevisionConflict)));
+        assert!(!a.is_cancelled());
+        drop(a);
+        let (mutation, complete) = e.apply(req.clone()).await.unwrap();
+        assert!(complete);
+        assert_eq!(mutation.revision, revision + 1);
+        assert!(e.users().is_empty());
+        let mut conflicting = req;
+        conflicting.command = Command::DeleteUser {
+            user_id: "another-user".into(),
+        };
+        assert!(matches!(
+            e.apply(conflicting).await,
+            Err(Error::IdempotencyConflict)
+        ));
+        assert!(matches!(
+            e.apply(request(&e, Command::DeleteUser { user_id: id }))
+                .await,
+            Err(Error::NotFound)
+        ));
+    }
+
+    #[tokio::test]
+    async fn timed_out_deletion_replays_until_sessions_and_permits_release() {
+        let (_dir, e) = fixture();
+        let a = account(&e, None).await;
+        let id = a.identity.user_id.clone();
+        let permit = e.reserve(&a, 1, false).await.unwrap();
+        let req = request(
+            &e,
+            Command::DeleteUser {
+                user_id: id.clone(),
+            },
+        );
+        let (_, complete) = e.apply(req.clone()).await.unwrap();
+        assert!(!complete);
+        assert!(a.is_cancelled());
+        assert!(e.users().is_empty());
+        e.reconcile_applied();
+        assert!(e.applied_revision() < e.revision());
+        drop(a);
+        e.reconcile_applied();
+        assert!(
+            e.applied_revision() < e.revision(),
+            "orphaned byte permits still need cleanup"
+        );
+        e.checkpoint().unwrap();
+        assert_eq!(e.storage_info().unwrap().ledger_rows, 0);
+        drop(permit);
+        let (replay, complete) = e.apply(req).await.unwrap();
+        assert!(replay.replay && complete);
+        assert_eq!(e.applied_revision(), e.revision());
+        assert!(!e.users.read().unwrap().contains_key(&id));
+        assert_eq!(
+            e.audit(None)
+                .unwrap()
+                .iter()
+                .filter(|a| a.operation == "delete_user")
+                .count(),
+            1
+        );
+    }
+
     #[tokio::test]
     async fn revoking_a_preserves_b_and_ack_waits_for_a_cleanup() {
         let (_dir, e) = fixture();

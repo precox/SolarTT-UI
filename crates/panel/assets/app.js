@@ -1,6 +1,6 @@
 "use strict";
 const $ = id => document.getElementById(id);
-let csrf = "", revision = 0, exported = null, editing = null, issuing = null, issueAttempt = null, auditBefore = null, authEpoch = 0, profileEpoch = 0;
+let csrf = "", revision = 0, exported = null, editing = null, issuing = null, issueAttempt = null, auditBefore = null, authEpoch = 0, profileEpoch = 0, canDelete = false, deleting = null, deleteAttempt = null;
 const show = (id, visible) => $(id).classList.toggle("hidden", !visible);
 function message(id,text) { $(id).textContent=text; show(id,!!text); }
 function notice(text) { message("notice",text); }
@@ -15,7 +15,7 @@ function deviceLimit(user) { return user.policy.device_limit ?? 16; }
 function staleSession() { const error=new Error("Session changed. Sign in and retry the pending action.");error.definitive=false;return error; }
 function signedOut() {
   authEpoch++;csrf="";clearProfile();
-  for(const id of ["profile","issue","edit"])if($(id).open)$(id).close();
+  for(const id of ["profile","issue","edit","delete-user"])if($(id).open)$(id).close();
   show("login",true);show("dashboard",false);show("logout",false);
 }
 async function json(url,body) {
@@ -67,6 +67,15 @@ function openSettings(user) {
   const date=user.policy.expires_at?new Date(user.policy.expires_at*1000):null;
   f.elements.expiry.value=date?new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,16):"";
   message("edit-error","");$("edit").showModal();
+}
+function openDelete(user) {
+  if(!canDelete)throw new Error("Update the agent to delete users");
+  if(deleteAttempt&&deleteAttempt.command.user_id!==user.id)throw new Error("Resolve the pending user deletion first");
+  deleting={id:user.id,label:user.label};
+  $("delete-user-name").textContent=user.label;
+  $("delete-user-submit").textContent=deleteAttempt?"Retry deletion":"Delete permanently";
+  message("delete-user-error",deleteAttempt?"The previous result is unknown. Retry checks the same deletion.":"");
+  $("delete-user").showModal();$("cancel-delete-user").focus();
 }
 function openIssue(user) {
   if(issueAttempt&&issueAttempt.command.user_id!==user.id)throw new Error("Resolve the pending device creation before adding a different device");
@@ -141,6 +150,7 @@ function renderUser(user) {
     action(user.status==="blocked"?"Unblock user":"Block user",async()=>{if(user.status==="blocked"||confirm("Block this user and close all their device connections?")){await command({op:"block_user",user_id:user.id,blocked:user.status!=="blocked"});await refresh();}},user.status==="blocked"?"quiet":"danger"),
     action("Reset traffic quota",async()=>{if(confirm("Start a new traffic quota period? Device profiles and their limit will be preserved.")){await command({op:"start_period",user_id:user.id,period_id:"manual-"+crypto.randomUUID()});await refresh();}})
   );
+  if(canDelete)controls.append(action("Delete user",()=>openDelete(user),"danger delete-user"));
   more.append(node("summary","More user actions"),controls);
   const technical=node("details",undefined,"connection-details");
   technical.append(node("summary","Connection details"),node("p","TLS connections: "+user.active_sessions+". A profile can have several connections; this is not a device count.","small muted"),node("p","Quota period: "+user.period_id,"small muted"));
@@ -157,6 +167,8 @@ async function refresh() {
   if(info.kind!=="info"||info.info.api_version!==1)throw new Error("Unsupported agent API");
   for(const capability of ["calendar_periods","audit","audited_profile_export","bounded_storage","device_profile_limits"])
     if(!info.info.capabilities.includes(capability))throw new Error("Update the agent to use device profile limits");
+  canDelete=info.info.capabilities.includes("delete_user");
+  show("resume-delete-user",!!deleteAttempt);
   const users=[];let after=null,snapshot=null;
   do {
     const page=await command({op:"users",after});
@@ -191,6 +203,25 @@ $("issue-form").addEventListener("submit",async e=>{
     message("issue-error",e.message+(e.code==="request_expired"?" The pending request is retained. Review existing profiles and audit history before any new issuance.":issueAttempt?" Retry uses the same request and will not issue another profile.":""));
   } finally {b.disabled=false;}
 });
+$("delete-user-form").addEventListener("submit",async e=>{
+  e.preventDefault();const b=$("delete-user-submit");if(b.disabled||!deleting)return;b.disabled=true;message("delete-user-error","");
+  if(!deleteAttempt)deleteAttempt={request_id:crypto.randomUUID(),expected_revision:revision,command:{op:"delete_user",user_id:deleting.id}};
+  show("resume-delete-user",true);
+  try {
+    await sendCommand(deleteAttempt);
+    const id=deleting.id;
+    deleteAttempt=null;deleting=null;show("resume-delete-user",false);$("delete-user").close();
+    if(issueAttempt?.command.user_id===id){issueAttempt=null;issuing=null;$("issue").close();}
+    clearProfile();if($("profile").open)$("profile").close();
+    await refresh();notice("User deleted permanently.");
+  } catch(e) {
+    if(e.definitive)deleteAttempt=null;
+    show("resume-delete-user",!!deleteAttempt);$("delete-user-submit").textContent=deleteAttempt?"Retry deletion":"Delete permanently";
+    message("delete-user-error",e.message+(deleteAttempt?" Retry uses the same deletion request.":" Refresh the user list before trying again."));
+  } finally {b.disabled=false;}
+});
+$("cancel-delete-user").addEventListener("click",()=>$("delete-user").close());
+$("resume-delete-user").addEventListener("click",()=>{try{openDelete(deleting);}catch(e){notice(e.message);}});
 document.querySelectorAll("[data-device-name]").forEach(b=>b.addEventListener("click",()=>{if(!issueAttempt){$("issue-form").elements.label.value=b.dataset.deviceName;$("issue-form").elements.label.focus();}}));
 $("cancel-issue").addEventListener("click",()=>$("issue").close());
 $("cancel-edit").addEventListener("click",()=>$("edit").close());

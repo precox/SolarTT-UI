@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.2-alpha.1 — Unreleased
+
+- Add permanent user deletion with a named confirmation, scoped TLS/TCP/UDP
+  cleanup and atomic removal of profiles and all quota periods. Audit records
+  and bounded retry receipts retain their normal retention rules.
+- Preserve the original deletion request across unknown responses, refresh and
+  administrator reauthentication, including when the user card has disappeared.
+- Reject period transitions before they can recreate a deleted user's ledger;
+  cover manual reset, concurrent calendar rollover, retries and restart.
+- Base the development candidate on published stable v0.1.1 and pin its verified
+  package for the stable upgrade/rollback/restore pilot. Dependencies, schema and
+  configuration defaults are unchanged. See [candidate notes](docs/releases/v0.1.2-alpha.1.md).
+
 ## 0.1.1 — 2026-11-12
 
 - Prepare stable version metadata from the unchanged `v0.1.1-alpha.1` runtime.

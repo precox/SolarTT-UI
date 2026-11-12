@@ -105,6 +105,7 @@ async fn process(req: Request, engine: Arc<Engine>, config: &Config, actor_uid: 
                 upstream_commit: "fab5b8353a19332f935fa30869307d37d4a898d1".into(),
                 capabilities: vec![
                     "users".into(),
+                    "delete_user".into(),
                     "credentials".into(),
                     "device_profile_limits".into(),
                     "payload_quota".into(),

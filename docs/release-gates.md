@@ -1,6 +1,6 @@
 # Release publication and stable acceptance
 
-## First public alpha: required publication gates
+## Required publication gates
 
 The tagged release workflow must pass all six prerequisites before it can publish:
 source/history/RustSec security scan; portable Rust and JavaScript tests; native
@@ -8,8 +8,10 @@ transport/browser/package acceptance; upstream regressions; actual systemd VM
 upgrade/guarded recovery; and minimal Ubuntu runtime without build tools.
 
 The pilot gate requires four matrix legs on separate disposable VMs: historical
-alpha.1 migration and published alpha.5, alpha.6 and v0.1.0 packages → exact candidate. No
-leg replaces the H2 pre-fix/fixed proof or quota/revocation isolation regressions.
+alpha.1 migration and published alpha.5, alpha.6 and the pinned stable package →
+exact candidate. The stable pin is v0.1.1 for post-v0.1.1 candidates; historical
+reports retain the baseline recorded in their tagged source. No leg replaces the
+H2 pre-fix/fixed proof or quota/revocation isolation regressions.
 
 Additional release guards require a unique canonical alpha or stable version/tag on `main`, exact
 source/build identity, the versioned dependency redistribution review and every
@@ -111,7 +113,7 @@ The complete exact-candidate CI and all artifact/security checks still apply.
 
 ## v0.1.1 owner decision, 2026-11-12
 
-The [current candidate acceptance record](v0.1.1-candidate-acceptance-2026-11-12.md)
+The [v0.1.1 candidate acceptance record](v0.1.1-candidate-acceptance-2026-11-12.md)
 and [machine-readable summary](releases/v0.1.1-candidate-checks.json) bind the
 functional, local restore, staging ACME and observation results to the published
 `v0.1.1-alpha.1` source/package. Stable preparation changes only version metadata

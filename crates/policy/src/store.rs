@@ -393,6 +393,9 @@ impl Store {
             let tx = db.transaction()?;
             Self::prune(&tx,policy,crate::now(),true,true)?;
             for user in &document.users { Self::ensure_period(&tx,policy,&user.id,&user.period_id)?; }
+            if operation == "delete_user" {
+                tx.execute("DELETE FROM ledger WHERE user_id=?1", [user])?;
+            }
             tx.execute("INSERT INTO document VALUES(1,?1) ON CONFLICT(id) DO UPDATE SET data=excluded.data",[serde_json::to_string(document)?])?;
             tx.execute("INSERT INTO requests VALUES(?1,?2,?3,?4,?5,?6)",params![audit.request_id,fingerprint,document.revision,resource,user,crate::now()])?;
             tx.execute("INSERT INTO audit(timestamp,revision,operation,subject,actor_uid,credential_id,request_id) VALUES(?1,?2,?3,?4,?5,?6,?7)",params![crate::now(),document.revision,operation,user,audit.actor_uid,audit.credential_id,audit.request_id])?;
