@@ -108,3 +108,24 @@ replacement. CPU/RSS point/observation values do not close the capacity gate.
 Direct network availability is outside the release guarantee; no censorship
 resistance is claimed. These limits are public in README and release notes.
 The complete exact-candidate CI and all artifact/security checks still apply.
+
+## v0.1.1 candidate evidence, 2026-11-12 — publication pending
+
+The [current candidate acceptance record](v0.1.1-candidate-acceptance-2026-11-12.md)
+and [machine-readable summary](releases/v0.1.1-candidate-checks.json) bind the
+functional, local restore, staging ACME and observation results to the published
+`v0.1.1-alpha.1` source/package. Stable preparation changes only version metadata
+and documentation from that tested runtime; new exact-source/tag CI is required.
+
+The owner accepted a shortened **20 h 39 min** observation in place of the planned
+24 hours: 1,240 samples, 248 periodic TCP/UDP probes plus a final probe, with zero
+health/collection/probe failures, restarts or OOM events. This was loopback-only
+shared-host QA under light synthetic load, not a completed 24-hour capacity test.
+Temporary QA state and test DNS were removed; production identity/configuration
+guards remained unchanged.
+
+Scoped functional/laboratory acceptance does not approve stable publication.
+The [v0.1.1 decision](releases/v0.1.1-acceptance.json) remains pending until the
+owner separately accepts the documented limitations and authorizes publication.
+Capacity, independent full-stack restore and actual public-certificate replacement
+remain deferred, not PASS. No network-reachability guarantee is introduced.
