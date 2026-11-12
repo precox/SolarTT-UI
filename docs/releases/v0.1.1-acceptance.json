@@ -58,5 +58,13 @@
   "supported_runtime": "Ubuntu 24.04, Linux x86_64, systemd",
   "public_record": "docs/v0.1.1-candidate-acceptance-2026-11-12.md",
   "checks_record": "docs/releases/v0.1.1-candidate-checks.json",
-  "publication_authorized": false
+  "publication_authorized": false,
+  "dependency_advisory_review": {
+    "status": "COMPLETED_SCOPED",
+    "assessment": "NO_AFFECTED_EXECUTION_PATH_IDENTIFIED_IN_SUPPORTED_MANAGED_MODE",
+    "record": "docs/dependency-advisory-review-2026-11-12.md",
+    "data": "docs/releases/v0.1.1-advisory-review.json",
+    "warnings_retained": true,
+    "dependency_updates_applied": false
+  }
 }
