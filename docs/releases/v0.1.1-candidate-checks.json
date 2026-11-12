@@ -1,0 +1,172 @@
+{
+  "record_kind": "sanitized_operator_acceptance_summary",
+  "candidate": {
+    "version": "0.1.1-alpha.1",
+    "source_commit": "690b621074896cf6758f12ea5ff612f21197d82a",
+    "package_sha256": "e2e54ee20fa441f50cfe94ff40ee094c9b5a47242ad3a6b1c0ac4356f948f6a4",
+    "tagged_ci": "https://github.com/precox/SolarTT-UI/actions/runs/42709401124"
+  },
+  "release_candidate": {
+    "version": "0.1.1",
+    "delta_from_tested_candidate": "Version metadata and documentation only; new exact-source CI required",
+    "publication_authorized": false
+  },
+  "manual_acceptance": {
+    "date": "2026-11-11",
+    "owner_decision": "ACCEPTED_SCOPED",
+    "client": {
+      "application": "official TrustTunnel Android",
+      "version": "1.2.0",
+      "android_version": "17"
+    },
+    "wifi_https_and_messaging": "PASS",
+    "automatic_wifi_mobile_wifi": "PASS",
+    "quota_a": {
+      "status": "PASS",
+      "method": "Lower limit below already-confirmed synthetic spend, then restore the original policy without database rollback",
+      "natural_traffic_exhaustion": "NOT_PERFORMED_MANUALLY; separate CI coverage",
+      "original_b_additional_tcp_udp_pairs": 6
+    },
+    "revoke_a": {
+      "status": "PASS",
+      "owner_confirmed_disconnect": true,
+      "owner_confirmed_old_profile_reconnect_denied": true,
+      "fresh_old_profile_http_status": 404,
+      "original_b_additional_tcp_udp_pairs": 7
+    },
+    "original_b": {
+      "tcp_udp_pairs": 358,
+      "duration_seconds": 1796.503,
+      "tls_transports": 1,
+      "tcp_connects": 1,
+      "udp_connects": 1,
+      "reconnects": 0,
+      "auxiliary_check_connects": 0,
+      "end": "Intentionally stopped before stopped-database restore"
+    },
+    "panel_ui_manual_retest": "DEFERRED; implementation unchanged, separate browser CI",
+    "automatic_monthly_boundary_manual_test": "NOT_PERFORMED; separate timestamp-injected CI regression"
+  },
+  "local_restore": {
+    "status": "PASS",
+    "scope": "Fresh private QA database with matching key; saved synthetic profile, policy/ledger equality, stale-snapshot refusal and revoked-profile refusal",
+    "independent_full_stack_restore": false
+  },
+  "observation": {
+    "status": "complete",
+    "verdict": "PASS",
+    "completion_basis": "owner_accepted_shortened_observation",
+    "started_at_utc": "2026-11-11T20:54:06.276569+00:00",
+    "finished_at_utc": "2026-11-12T17:33:10.728735+00:00",
+    "accepted_observation_seconds": 74340.001,
+    "samples": 1240,
+    "local_health_failures": 0,
+    "collection_errors": 0,
+    "external_traffic_probes": 248,
+    "external_traffic_probe_failures": 0,
+    "max_sample_gap_seconds": 60.077,
+    "peak_hwm_kib": {
+      "agent": 16508,
+      "panel": 4504
+    },
+    "peak_interval_cpu_percent_one_core": {
+      "agent": 0.20478418038560056,
+      "panel": 0.020925264410593187
+    },
+    "max_fds": {
+      "agent": 16,
+      "panel": 10
+    },
+    "sample_history_sha256": "fa0c16566834a778afc665f9b6233878b7ad4a9ac0f84eec0606a3f4b521fb23",
+    "original_duration_target_seconds": 86400,
+    "original_24h_target_met": false,
+    "agent_restarts": 0,
+    "panel_restarts": 0,
+    "oom_events": 0,
+    "additional_final_tcp_udp_probe": "PASS"
+  },
+  "acme_staging": {
+    "date": "2026-11-11",
+    "certbot_version": "2.9.0",
+    "issuance": "PASS",
+    "dns_challenges": 2,
+    "exact_txt_verified_on_both_authoritative_nameservers": true,
+    "renew_dry_run": {
+      "status": "PASS",
+      "exit_code": 0,
+      "run_deploy_hooks": true,
+      "reload_ack_before": 0,
+      "reload_ack_after": 1,
+      "qa_agent_restarted": false,
+      "strict_fresh_tls_h2_check": "PASS"
+    },
+    "original_b_after_reload": {
+      "pairs": 108,
+      "elapsed_seconds": 538.022,
+      "tls_transports": 1,
+      "tcp_connects": 1,
+      "udp_connects": 1,
+      "reconnects": 0,
+      "auxiliary_check_connects": 0
+    },
+    "owner_mediated_dns": true,
+    "deploy_hook_scope": "Exact pinned same-UID QA agent through pidfd; active staging certificate reloaded",
+    "actual_public_certificate_replacement": false,
+    "dns_cleanup_verified_at_utc": "2026-11-11T22:20:37.662562+00:00",
+    "dns_test_values_absent": true
+  },
+  "cleanup": {
+    "functional_qa": "PASS",
+    "acme_qa": "STOPPED_AND_VERIFIED",
+    "observation_qa": "PASS",
+    "synthetic_credentials_revoked": 2,
+    "qa_processes_accounts_keys_profiles_and_listeners_removed": true,
+    "production_identity_and_selected_configuration_unchanged": true
+  },
+  "limits": [
+    "Operator acceptance evidence, not a substitute for exact stable-candidate CI or owner publication approval.",
+    "Shared-host QA process cohost, not package lifecycle or independent full-stack recovery.",
+    "Sample history hash identifies private evidence; raw samples, profiles, keys, databases and diagnostic logs are not published.",
+    "No measured capacity, network-reachability or censorship-resistance guarantee."
+  ],
+  "source_preflight": {
+    "date": "2026-11-12",
+    "python_unit_tests": {
+      "status": "PASS",
+      "count": 129
+    },
+    "source_secret_findings": 0,
+    "history_secret_findings": 0,
+    "rustsec_vulnerability_count": 0,
+    "rustsec_advisory_database_commit": "af7b3ec33460b8e2de8d422e16d628518891a519",
+    "informational_warnings": [
+      {
+        "package": "rustls-pemfile",
+        "version": "1.0.4",
+        "kind": "unmaintained",
+        "advisory": "RUSTSEC-2025-0134"
+      },
+      {
+        "package": "rustls-pemfile",
+        "version": "2.2.0",
+        "kind": "unmaintained",
+        "advisory": "RUSTSEC-2025-0134"
+      },
+      {
+        "package": "rustix",
+        "version": "1.1.5",
+        "kind": "unsound",
+        "advisory": "RUSTSEC-2026-0486"
+      },
+      {
+        "package": "tokio",
+        "version": "1.53.2",
+        "kind": "unsound",
+        "advisory": "RUSTSEC-2026-0386"
+      }
+    ],
+    "dependency_warning_review": "COMPLETED_SCOPED; no affected execution path identified in supported managed mode; warnings retained",
+    "dependency_warning_review_record": "docs/dependency-advisory-review-2026-11-12.md",
+    "dependency_warning_review_data": "docs/releases/v0.1.1-advisory-review.json"
+  }
+}

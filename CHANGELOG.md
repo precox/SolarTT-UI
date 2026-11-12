@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.1 — Unreleased stable candidate
+
+- Prepare stable version metadata from the unchanged `v0.1.1-alpha.1` runtime.
+  No runtime, dependency, schema, configuration-default or managed-patch changes
+  are introduced by this preparation.
+- Record scoped Android acceptance, quota/revoke-A with original B continuity,
+  matching-key local restore, and staging DNS-01 issuance/renewal with a QA TLS
+  reload hook.
+- Record the owner's accepted shortened observation: 20 h 39 min, 1,240 samples,
+  248 periodic TCP/UDP probes and a final probe, with no errors, restarts or OOM.
+  The originally planned 24 hours were not completed. Temporary QA state was
+  removed without changing production identities/configuration.
+- Stable publication approval remains pending. Capacity, independent full-stack
+  recovery and actual public-certificate replacement remain unverified;
+  network reachability is not guaranteed. Exact stable-source CI is still required.
+
 ## 0.1.1-alpha.1 — 2026-11-09
 
 - Deny IPv4 multicast destinations in the managed adapter, including UDP.
