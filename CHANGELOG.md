@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.1 — Unreleased stable candidate
+## 0.1.1 — 2026-11-12
 
 - Prepare stable version metadata from the unchanged `v0.1.1-alpha.1` runtime.
   No runtime, dependency, schema, configuration-default or managed-patch changes
@@ -12,9 +12,10 @@
   248 periodic TCP/UDP probes and a final probe, with no errors, restarts or OOM.
   The originally planned 24 hours were not completed. Temporary QA state was
   removed without changing production identities/configuration.
-- Stable publication approval remains pending. Capacity, independent full-stack
-  recovery and actual public-certificate replacement remain unverified;
-  network reachability is not guaranteed. Exact stable-source CI is still required.
+- The owner authorized stable publication with documented limitations on
+  2026-11-12. Capacity, independent full-stack recovery and actual public-certificate
+  replacement remain unverified; network reachability is not guaranteed.
+  Full exact-tag CI and public-asset verification remain required before release.
 
 ## 0.1.1-alpha.1 — 2026-11-09
 

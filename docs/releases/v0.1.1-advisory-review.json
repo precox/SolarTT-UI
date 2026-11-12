@@ -182,6 +182,7 @@
   ],
   "patch_candidate_resolution_or_ci": "NOT_PERFORMED; exact source/notice comparison only; no dependency update applied",
   "recommendation": "Retain the tested graph for this metadata-only stable preparation, preserve warnings, and prepare a separately reviewed/tested maintenance update. Reopen this assessment if the guard, consumers, platforms or graph change.",
-  "owner_stable_publication_decision": "PENDING",
-  "public_record": "docs/dependency-advisory-review-2026-11-12.md"
+  "owner_stable_publication_decision": "AUTHORIZED_WITH_DOCUMENTED_LIMITATIONS",
+  "public_record": "docs/dependency-advisory-review-2026-11-12.md",
+  "owner_stable_publication_decision_date": "2026-11-12"
 }

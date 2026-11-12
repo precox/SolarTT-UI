@@ -109,7 +109,7 @@ Direct network availability is outside the release guarantee; no censorship
 resistance is claimed. These limits are public in README and release notes.
 The complete exact-candidate CI and all artifact/security checks still apply.
 
-## v0.1.1 candidate evidence, 2026-11-12 — publication pending
+## v0.1.1 owner decision, 2026-11-12
 
 The [current candidate acceptance record](v0.1.1-candidate-acceptance-2026-11-12.md)
 and [machine-readable summary](releases/v0.1.1-candidate-checks.json) bind the
@@ -124,8 +124,9 @@ shared-host QA under light synthetic load, not a completed 24-hour capacity test
 Temporary QA state and test DNS were removed; production identity/configuration
 guards remained unchanged.
 
-Scoped functional/laboratory acceptance does not approve stable publication.
-The [v0.1.1 decision](releases/v0.1.1-acceptance.json) remains pending until the
-owner separately accepts the documented limitations and authorizes publication.
+The owner separately authorized stable publication with documented limitations
+on 12 November; see the [accepted scope](stable-acceptance-2026-11-12.md) and
+[v0.1.1 decision](releases/v0.1.1-acceptance.json). Exact tagged-source CI and
+public-asset verification remain mandatory.
 Capacity, independent full-stack restore and actual public-certificate replacement
 remain deferred, not PASS. No network-reachability guarantee is introduced.

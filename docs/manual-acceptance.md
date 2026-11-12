@@ -9,8 +9,9 @@ no persistent human-acceptance environment is left running.
 The published `v0.1.1-alpha.1` now has a separate
 [11–12 November candidate record](v0.1.1-candidate-acceptance-2026-11-12.md): scoped
 Android, quota/revoke, local restore, staging ACME and owner-accepted shortened
-observation. Its temporary QA environment has also been removed. Stable
-publication approval remains separate and pending in the versioned decision.
+observation. Its temporary QA environment has also been removed. The owner
+separately authorized stable publication with the limitations in the
+[12 November stable decision](stable-acceptance-2026-11-12.md).
 
 Future environments require their own applicable authorization. Do not provision
 a VM, deploy on a working service or mutate working-user accounts merely from
