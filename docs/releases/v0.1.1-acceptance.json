@@ -1,7 +1,7 @@
 {
   "version": "0.1.1",
-  "decision": "pending_owner_acceptance",
-  "owner_accepted_limitations": false,
+  "decision": "accepted_with_documented_limitations",
+  "owner_accepted_limitations": true,
   "human_acceptance": "ACCEPTED_SCOPED",
   "deployment": "AUTHORIZED_QA_PROCESS_COHOST_ONLY; NO_PRODUCTION_PACKAGE_INSTALL",
   "prerelease_candidate": "v0.1.1-alpha.1",
@@ -56,9 +56,9 @@
     "candidate_delta": "Version metadata and acceptance/release documentation only; no runtime logic, dependencies, configuration defaults, schema or managed patch changes"
   },
   "supported_runtime": "Ubuntu 24.04, Linux x86_64, systemd",
-  "public_record": "docs/v0.1.1-candidate-acceptance-2026-11-12.md",
+  "public_record": "docs/stable-acceptance-2026-11-12.md",
   "checks_record": "docs/releases/v0.1.1-candidate-checks.json",
-  "publication_authorized": false,
+  "publication_authorized": true,
   "dependency_advisory_review": {
     "status": "COMPLETED_SCOPED",
     "assessment": "NO_AFFECTED_EXECUTION_PATH_IDENTIFIED_IN_SUPPORTED_MANAGED_MODE",
@@ -66,5 +66,9 @@
     "data": "docs/releases/v0.1.1-advisory-review.json",
     "warnings_retained": true,
     "dependency_updates_applied": false
-  }
+  },
+  "owner_decision_date": "2026-11-12",
+  "owner_decision_recorded_at_utc": "2026-11-12T19:03:48.425115+00:00",
+  "production_installation_authorized": false,
+  "publication_scope": "Stable v0.1.1 GitHub release only, after reviewed source and full exact-tag CI; no live-server installation, restart or configuration change"
 }

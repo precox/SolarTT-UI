@@ -9,7 +9,10 @@
   "release_candidate": {
     "version": "0.1.1",
     "delta_from_tested_candidate": "Version metadata and documentation only; new exact-source CI required",
-    "publication_authorized": false
+    "publication_authorized": true,
+    "owner_decision_date": "2026-11-12",
+    "owner_decision_record": "docs/stable-acceptance-2026-11-12.md",
+    "production_installation_authorized": false
   },
   "manual_acceptance": {
     "date": "2026-11-11",
@@ -124,7 +127,7 @@
     "production_identity_and_selected_configuration_unchanged": true
   },
   "limits": [
-    "Operator acceptance evidence, not a substitute for exact stable-candidate CI or owner publication approval.",
+    "Operator acceptance evidence remains separate from exact stable-tag CI and public-asset verification; owner publication approval is recorded on 2026-11-12.",
     "Shared-host QA process cohost, not package lifecycle or independent full-stack recovery.",
     "Sample history hash identifies private evidence; raw samples, profiles, keys, databases and diagnostic logs are not published.",
     "No measured capacity, network-reachability or censorship-resistance guarantee."
