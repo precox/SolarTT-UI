@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.2-alpha.1 — Unreleased
+## 0.1.2-alpha.1 — 2026-11-13
 
 - Add permanent user deletion with a named confirmation, scoped TLS/TCP/UDP
   cleanup and atomic removal of profiles and all quota periods. Audit records
@@ -12,6 +12,11 @@
 - Base the development candidate on published stable v0.1.1 and pin its verified
   package for the stable upgrade/rollback/restore pilot. Dependencies, schema and
   configuration defaults are unchanged. See [candidate notes](docs/releases/v0.1.2-alpha.1.md).
+- Record the owner's scoped Chrome acceptance of cancellation and permanent
+  deletion, old-profile denial, retained audit, continuous B traffic and local
+  restore. The original A observer timed out before deletion; a separate live
+  deletion verified closure of both original TLS transports. Exact tagged-source
+  CI remains required. Publication is a prerelease and does not authorize deployment.
 
 ## 0.1.1 — 2026-11-12
 
