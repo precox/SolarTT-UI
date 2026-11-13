@@ -1,0 +1,93 @@
+{
+  "version": "0.1.2",
+  "checked_at_utc": "2026-11-13T23:16:06.241670+00:00",
+  "candidate": {
+    "source_commit": "095f921f2d69e1ecefe9e0a697e547489daf532e",
+    "source_kind": "GitHub PR synthetic merge; source archive files byte-identical to branch head",
+    "branch_head": "5233cec102155b58d9ae303ac85f024df5289a35",
+    "source_files_verified": 184,
+    "version": "0.1.2",
+    "package_sha256": "29f905b04f2fbea64b08ed1263c91fa4a275623649a44040efa3444bc36195fa",
+    "artifact_sha256": "921761b017d173cb3879bea9521db71897d4c0817e4a09833b726565df92dce8",
+    "artifact_id": 14083437723,
+    "ci_run": 43523017171
+  },
+  "review_record": "docs/releases/v0.1.2-review.json",
+  "source_ci": "https://github.com/precox/SolarTT-UI/actions/runs/43523017171",
+  "required_code_ci_jobs_passed": 9,
+  "human_panel_acceptance": {
+    "version": "0.1.2-alpha.1",
+    "runtime_basis_commit": "f91adebbf11cb648e869750960a935196d2e034c",
+    "browser": "Chrome",
+    "browser_version": "NOT_REPORTED",
+    "os": "NOT_REPORTED",
+    "result": "Owner confirmed cancellation, permanent A deletion and retained B",
+    "panel_implementation_unchanged_in_corrected_candidate": true
+  },
+  "fixed_package_automated_browser_preview": {
+    "status": "PASS",
+    "checks": [
+      "sign-in",
+      "confirmation and cancel",
+      "safe default focus",
+      "password cleared",
+      "320/390/1280px layouts"
+    ],
+    "human_acceptance": false
+  },
+  "observation": {
+    "status": "complete",
+    "verdict": "PASS",
+    "completion_basis": "completed_finite_corrected_package_observation",
+    "started_at_utc": "2026-11-13T23:02:07.294399+00:00",
+    "finished_at_utc": "2026-11-13T23:14:07.797393+00:00",
+    "duration_seconds": 720.503,
+    "planned_duration_seconds": 720,
+    "samples": 140,
+    "local_health_failures": 0,
+    "collection_errors": 0,
+    "transport_reconnects": 0,
+    "A_successful_tcp_udp_pairs_before_deletion": 578,
+    "A_secondary_original_transport_udp_successes": 578,
+    "B_successful_tcp_udp_pairs": 694,
+    "A_original_tls_transports_closed": 2,
+    "udp_timeout_attempts": {
+      "A": 0,
+      "A2": 0,
+      "B": 0
+    },
+    "max_sampled_rss_kib": {
+      "agent": 16680,
+      "panel": 4716
+    },
+    "max_sampled_fds": {
+      "agent": 22,
+      "panel": 12
+    },
+    "scope": "Corrected v0.1.2 PR-candidate; 12-minute shared-host non-root light synthetic observation. Original B segment ends before stopped restore. Not a 24-hour, capacity or physical-client test."
+  },
+  "deletion_and_recovery": {
+    "status": "PASS",
+    "all_A_credential_exports_unavailable": "PASS",
+    "stale_pre_delete_snapshot_rollback_refused": "PASS",
+    "stopped_backup_restore_document_ledger_audit_requests_identical": "PASS",
+    "same_id_delete_replay_after_restore": "PASS",
+    "A_absent_and_B_present_after_restore": "PASS",
+    "old_A_saved_profiles_denied_after_restore": "PASS",
+    "B_saved_profile_new_tcp_udp_after_restore": "PASS",
+    "qa_stopped_ports_closed_secrets_removed": true,
+    "production_services_and_package_unchanged": true
+  },
+  "lost_first_response_same_id_replay": "PASS",
+  "A_document_and_all_quota_history_absent": "PASS",
+  "single_A_delete_audit_retained": "PASS",
+  "diagnostic_limits": {
+    "historical_A_timeout": "INCONCLUSIVE; before deletion; original A closure not claimed",
+    "first_fresh_alpha_A_TCP_timeout": "FAIL retained; not relabelled PASS; waiting for DoT response; cause not localized",
+    "helper_classifier": "Deterministic helper repro can report timeout after already-ended H2 stream; corrected helper checks ended state before pump",
+    "underlying_timeout_cause": "UNDETERMINED; not attributed to the refill race",
+    "separate_direct_and_tunnel_tcp_comparison": "PASS, 5 original connections for 180s, no reconnects/timeouts",
+    "separate_direct_and_tunnel_mixed_comparison": "PASS, 5 original connections for 180s, no reconnects/timeouts"
+  },
+  "stable_preparation_delta_after_tested_code": "Release/acceptance documentation only; runtime/package version stays 0.1.2. Exact tagged-source CI remains mandatory."
+}

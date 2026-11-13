@@ -132,3 +132,16 @@ on 12 November; see the [accepted scope](stable-acceptance-2026-11-12.md) and
 public-asset verification remain mandatory.
 Capacity, independent full-stack restore and actual public-certificate replacement
 remain deferred, not PASS. No network-reachability guarantee is introduced.
+
+## v0.1.2 owner decision, 2026-11-13
+
+The owner requested an additional independent review followed by stable release
+after successful results. Astra reproduced a pre-existing concurrent-refill P2;
+the corrected source and counter-boundary regressions were independently reviewed.
+The versioned [stable decision](releases/v0.1.2-acceptance.json),
+[checks summary](releases/v0.1.2-checks.json) and
+[accepted scope](stable-acceptance-2026-11-13.md) distinguish Chrome deletion
+acceptance, corrected-package QA and historical observation/ACME evidence.
+The earlier A timeout remains inconclusive, with no claimed historical cause.
+Exact-tag CI and public-asset verification remain required; no production rollout
+is authorized by publication.

@@ -1,0 +1,44 @@
+{
+  "review_date": "2026-11-13",
+  "model": "GPT-6 Astra",
+  "reasoning_effort": "xhigh",
+  "alpha_subject_commit": "3bc83c233f389bda54009d2a4d85d03d2a330adb",
+  "reviewed_fix_branch_commit": "5233cec102155b58d9ae303ac85f024df5289a35",
+  "reviewed_policy_source_sha256": "64b6a05e0467f42f423ecb9162c1bf3db4dfa7748b90e8dd8053d4e3f2b10576",
+  "confirmed_actionable_defects_found": 1,
+  "fixed_findings": 1,
+  "remaining_code_review_blockers": 0,
+  "finding": {
+    "severity": "P2",
+    "title": "Concurrent stale refill rejects an allowed stream with available shared bytes",
+    "preexisting_in_v0_1_1": true,
+    "deletion_regression": false,
+    "reproduced_before_fix": true,
+    "before_fix_result": "First reserve succeeds; second fails with Quota storage unavailable while 262143 bytes remain available and 1 byte pending",
+    "fix": "Replan zero-grant refills; require charged < MAX_COUNTER before queuing refill",
+    "after_fix": "Deterministic queued TCP/UDP refills and counter-boundary regressions pass"
+  },
+  "checks": {
+    "fresh_alpha_policy_and_adversarial_tests": {
+      "passed": 48,
+      "failed": 0,
+      "scope": "45 repository tests plus 3 isolated late-transaction failure, detached caller/orphan permit and 32 race interleavings"
+    },
+    "panel_state_and_extra_retry_cases": {
+      "passed": 18,
+      "failed": 0,
+      "scope": "Node fake-DOM state tests, including 3 extra late-response/retry cases; not browser acceptance"
+    },
+    "fixed_policy_and_adversarial_tests": {
+      "passed": 52,
+      "failed": 0,
+      "scope": "45 original policy tests, 5 review-only tests and 2 new repository regressions"
+    },
+    "exact_formatted_stable_source_new_regressions": {
+      "passed": 2,
+      "failed": 0
+    }
+  },
+  "diagnostic_limit": "Neither the historical nor first fresh alpha DoT timeout is causally attributed to the refill race. Review findings do not establish their root cause.",
+  "approval_scope": "Independent code review only; owner acceptance, exact-source CI and built-package QA are recorded separately."
+}
