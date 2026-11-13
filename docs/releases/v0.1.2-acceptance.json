@@ -59,7 +59,7 @@
       "agent": 22,
       "panel": 12
     },
-    "scope": "Corrected v0.1.2 PR-candidate;12-minute shared-host non-root light synthetic observation. Original B segment ends before stopped restore. Not a24-hour, capacity or physical-client test."
+    "scope": "Corrected v0.1.2 PR-candidate; 12-minute shared-host non-root light synthetic observation. Original B segment ends before stopped restore. Not a 24-hour, capacity or physical-client test."
   },
   "local_restore": "PASS",
   "acme_staging_dry_run": "PASS",
