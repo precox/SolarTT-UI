@@ -28,9 +28,10 @@ Concurrent-user capacity, full recovery after host loss and an actual future
 certificate replacement remain explicitly unverified. See the
 [accepted release scope and limitations](docs/stable-acceptance-2026-11-12.md).
 
-**Development candidate: [0.1.2-alpha.1](docs/releases/v0.1.2-alpha.1.md), unreleased.**
-This branch adds permanent user deletion. The v0.1.1 download instructions below
-refer to the published stable package; acceptance of the new deletion flow is separate.
+**Prerelease: [0.1.2-alpha.1](https://github.com/precox/SolarTT-UI/releases/tag/v0.1.2-alpha.1).**
+This version adds permanent user deletion with scoped Chrome acceptance recorded
+in the [release notes](docs/releases/v0.1.2-alpha.1.md). The v0.1.1 download
+instructions below refer to the published stable package.
 
 <p align="center">
   <img src="docs/screenshots/mobile-users.png" width="280" alt="Mobile panel demo: synthetic users, shared traffic quota and individual device profiles">
