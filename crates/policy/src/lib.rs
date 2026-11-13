@@ -1175,7 +1175,9 @@ impl Engine {
                 .min(remaining)
                 .min(MAX_COUNTER.saturating_sub(s.charged));
             if grant == 0 {
-                return Err(Error::Denied);
+                // Another queued refill may already have filled the pool or used
+                // the remaining durable allowance. Reserve rechecks current state.
+                return Ok(());
             }
             engine.persistent.lock().unwrap().store.grant(
                 &s.user.id,
@@ -1224,6 +1226,7 @@ impl Engine {
                         .map(|l| l.saturating_sub(s.charged))
                         .unwrap_or(LEASE_BYTES);
                     if remaining > 0
+                        && s.charged < MAX_COUNTER
                         && s.available + s.pending < LEASE_BYTES
                         && (s.available == 0 || (datagram && amount as u64 > s.available))
                     {
@@ -1543,6 +1546,119 @@ mod tests {
         p.finish(5).unwrap();
         assert_eq!(e.users()[0].confirmed_bytes, 5);
     }
+    #[test]
+    fn concurrent_refills_recheck_available_bytes_and_counter_headroom() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .max_blocking_threads(1)
+            .build()
+            .unwrap();
+        runtime.block_on(async {
+            // Full lease, last finite quota grant, and last counter headroom grant.
+            for (limit, charged) in [(None, 0), (Some(2), 0), (None, MAX_COUNTER - 2)] {
+                let (_dir, e) = fixture();
+                let a = account(&e, limit).await;
+                let b = e.open_session(a.identity.clone()).unwrap();
+                if charged != 0 {
+                    let mut state = a.user.state.lock().unwrap();
+                    state.charged = charged;
+                    state.confirmed = charged;
+                    e.persistent
+                        .lock()
+                        .unwrap()
+                        .store
+                        .checkpoint(&state.user.id, &state.user.period_id, charged, charged)
+                        .unwrap();
+                }
+                let (release_tx, release_rx) = std::sync::mpsc::channel::<()>();
+                let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
+                let blocker = tokio::task::spawn_blocking(move || {
+                    ready_tx.send(()).unwrap();
+                    release_rx.recv().unwrap();
+                });
+                ready_rx.await.unwrap();
+                let first = e.reserve(&a, 1, false);
+                let second = e.reserve(&b, 1, true);
+                tokio::pin!(first);
+                tokio::pin!(second);
+                // Poll both reservations while their blocking refills cannot run.
+                // The queued workers must then observe the same initially empty pool.
+                tokio::select! {
+                    biased;
+                    _ = &mut first => panic!("First refill escaped the blocked worker"),
+                    _ = std::future::ready(()) => {},
+                }
+                tokio::select! {
+                    biased;
+                    _ = &mut second => panic!("Second refill escaped the blocked worker"),
+                    _ = std::future::ready(()) => {},
+                }
+                release_tx.send(()).unwrap();
+                // Keep the first permit outstanding until the second refill finishes.
+                let (first, second) = tokio::join!(first, second);
+                blocker.await.unwrap();
+                first.unwrap().finish(1).unwrap();
+                second.unwrap().finish(1).unwrap();
+                assert_eq!(e.users()[0].confirmed_bytes, charged + 2);
+                assert!(e.users()[0].available_lease_bytes <= LEASE_BYTES);
+            }
+        });
+    }
+
+    #[tokio::test]
+    async fn counter_cap_uses_residual_pool_and_waits_without_refill_loop() {
+        let (_dir, e) = fixture();
+        let session = account(&e, None).await;
+        {
+            let mut state = session.user.state.lock().unwrap();
+            state.charged = MAX_COUNTER;
+            state.confirmed = MAX_COUNTER - 1;
+            state.available = 1;
+            e.persistent
+                .lock()
+                .unwrap()
+                .store
+                .checkpoint(
+                    &state.user.id,
+                    &state.user.period_id,
+                    state.charged,
+                    state.confirmed,
+                )
+                .unwrap();
+        }
+        let oversized = tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            e.reserve(&session, 2, true),
+        )
+        .await
+        .expect("Counter cap caused a refill loop");
+        assert!(matches!(oversized, Err(error) if error.kind() == io::ErrorKind::WouldBlock));
+        assert_eq!(e.users()[0].available_lease_bytes, 1);
+        let permit = e.reserve(&session, 1, false).await.unwrap();
+        let waiting = e.reserve(&session, 1, true);
+        tokio::pin!(waiting);
+        tokio::select! {
+            biased;
+            _ = &mut waiting => panic!("Reservation did not wait for the pending permit"),
+            _ = std::future::ready(()) => {},
+        }
+        drop(permit);
+        tokio::time::timeout(std::time::Duration::from_secs(1), waiting)
+            .await
+            .unwrap()
+            .unwrap()
+            .finish(1)
+            .unwrap();
+        assert_eq!(e.users()[0].confirmed_bytes, MAX_COUNTER);
+        let exhausted = tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            e.reserve(&session, 1, false),
+        )
+        .await
+        .expect("Exhausted counter caused a refill loop");
+        assert!(matches!(exhausted, Err(error) if error.kind() == io::ErrorKind::PermissionDenied));
+    }
+
     #[tokio::test]
     async fn refills_an_insufficient_udp_lease_without_busy_loop() {
         let (_dir, e) = fixture();
