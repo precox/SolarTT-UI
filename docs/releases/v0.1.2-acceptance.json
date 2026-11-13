@@ -1,0 +1,91 @@
+{
+  "version": "0.1.2",
+  "decision": "accepted_with_documented_limitations",
+  "owner_accepted_limitations": true,
+  "human_acceptance": "ACCEPTED_SCOPED",
+  "deployment": "AUTHORIZED_QA_PROCESS_COHOST_ONLY; NO_PRODUCTION_PACKAGE_INSTALL",
+  "prerelease_candidate": "v0.1.2-alpha.1",
+  "owner_instruction": "Делаем, потом stable по итогу",
+  "owner_decision_date": "2026-11-13",
+  "owner_instruction_scope": "Additional independent review followed by stable GitHub publication after successful review and checks; existing verification limits remain explicit.",
+  "authorization_conditions_satisfied": {
+    "confirmed_review_findings_fixed": 1,
+    "remaining_code_review_blockers": 0,
+    "reviewed_code_ci_required_jobs_passed": 9,
+    "corrected_built_package_qa": "PASS",
+    "exact_tag_ci_and_public_verification": "REQUIRED_AT_PUBLICATION"
+  },
+  "affected_flows": [
+    "Permanent deletion of user, all profiles and quota periods; scoped TLS/TCP/UDP cleanup and retry/restart",
+    "Concurrent quota refill replanning; finite quota and durable counter boundary"
+  ],
+  "unaffected_flows": {
+    "panel_ui_and_profile_format": "Implementation unchanged from accepted alpha; package version metadata advances to 0.1.2",
+    "dependencies_schema_defaults_upstream_patch": "Unchanged"
+  },
+  "network_reachability_guarantee": false,
+  "advertised_client_capacity": false,
+  "deferred_checks": {
+    "real_certificate_replacement": "Historical v0.1.1 staging DNS-01 issuance/renewal and QA reload hook passed for the unchanged TLS/reload implementation; no new v0.1.2 ACME run or actual public-certificate replacement.",
+    "independent_full_stack_restore": "Current matching-key local QA snapshot restore and saved-profile checks passed; complete recovery after host loss on another host remains unverified.",
+    "capacity_benchmark": "Current observation is 720.503 seconds under light synthetic load; historical v0.1.1 20h39m evidence is not observation of the modified runtime. No client-count, throughput, UDP-loss or disk-sync capacity is advertised."
+  },
+  "observation": {
+    "status": "complete",
+    "verdict": "PASS",
+    "completion_basis": "completed_finite_corrected_package_observation",
+    "started_at_utc": "2026-11-13T23:02:07.294399+00:00",
+    "finished_at_utc": "2026-11-13T23:14:07.797393+00:00",
+    "duration_seconds": 720.503,
+    "planned_duration_seconds": 720,
+    "samples": 140,
+    "local_health_failures": 0,
+    "collection_errors": 0,
+    "transport_reconnects": 0,
+    "A_successful_tcp_udp_pairs_before_deletion": 578,
+    "A_secondary_original_transport_udp_successes": 578,
+    "B_successful_tcp_udp_pairs": 694,
+    "A_original_tls_transports_closed": 2,
+    "udp_timeout_attempts": {
+      "A": 0,
+      "A2": 0,
+      "B": 0
+    },
+    "max_sampled_rss_kib": {
+      "agent": 16680,
+      "panel": 4716
+    },
+    "max_sampled_fds": {
+      "agent": 22,
+      "panel": 12
+    },
+    "scope": "Corrected v0.1.2 PR-candidate; 12-minute shared-host non-root light synthetic observation. Original B segment ends before stopped restore. Not a 24-hour, capacity or physical-client test."
+  },
+  "local_restore": "PASS",
+  "acme_staging_dry_run": "PASS",
+  "acme_staging_dry_run_basis": {
+    "tested_release": "v0.1.1",
+    "tested_runtime_basis": "v0.1.1-alpha.1",
+    "tested_source_commit": "690b621074896cf6758f12ea5ff612f21197d82a",
+    "test_date": "2026-11-11",
+    "record": "docs/v0.1.1-candidate-acceptance-2026-11-12.md",
+    "unchanged_tls_reload_path": true,
+    "repeated_for_v0_1_2": false,
+    "status_scope": "PASS is the historical staging test result, not a new exact-v0.1.2 ACME test."
+  },
+  "runtime_basis": {
+    "tested_pr_branch_commit": "5233cec102155b58d9ae303ac85f024df5289a35",
+    "tested_pr_merge_commit": "095f921f2d69e1ecefe9e0a697e547489daf532e",
+    "tested_package_sha256": "29f905b04f2fbea64b08ed1263c91fa4a275623649a44040efa3444bc36195fa",
+    "source_trees_equal": true,
+    "source_archive_files_compared": 184,
+    "tagged_release_delta": "Documentation only from the tested corrected code/version; fresh exact-tag CI remains mandatory."
+  },
+  "supported_runtime": "Ubuntu 24.04, Linux x86_64, systemd",
+  "public_record": "docs/stable-acceptance-2026-11-13.md",
+  "checks_record": "docs/releases/v0.1.2-checks.json",
+  "review_record": "docs/releases/v0.1.2-review.json",
+  "publication_authorized": true,
+  "production_installation_authorized": false,
+  "publication_scope": "Stable v0.1.2 GitHub release only after all release gates; no live-node installation, restart or configuration change"
+}

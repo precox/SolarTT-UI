@@ -19,19 +19,18 @@ independent community project, not an official TrustTunnel product.
 This page covers installation and everyday use. For development and build
 instructions, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
-**Version documented: [v0.1.1](docs/releases/v0.1.1.md).**
+**Version documented: [v0.1.2](docs/releases/v0.1.2.md).**
 Check [GitHub Releases](https://github.com/precox/SolarTT-UI/releases) for published
 packages matching this version; a source branch alone is not a binary release.
 This stable release covers operator-managed single-node deployments on
 Ubuntu 24.04 x86_64. Network reachability under filtering is not guaranteed.
 Concurrent-user capacity, full recovery after host loss and an actual future
 certificate replacement remain explicitly unverified. See the
-[accepted release scope and limitations](docs/stable-acceptance-2026-11-12.md).
+[accepted release scope and limitations](docs/stable-acceptance-2026-11-13.md).
 
-**Prerelease: [0.1.2-alpha.1](https://github.com/precox/SolarTT-UI/releases/tag/v0.1.2-alpha.1).**
-This version adds permanent user deletion with scoped Chrome acceptance recorded
-in the [release notes](docs/releases/v0.1.2-alpha.1.md). The v0.1.1 download
-instructions below refer to the published stable package.
+Version 0.1.2 adds permanent user deletion and fixes a concurrency error in quota
+refills. See the [release notes](docs/releases/v0.1.2.md) for acceptance and upgrade
+details.
 
 <p align="center">
   <img src="docs/screenshots/mobile-users.png" width="280" alt="Mobile panel demo: synthetic users, shared traffic quota and individual device profiles">
@@ -59,13 +58,13 @@ No production users, credentials or traffic are shown.</p>
 ## Download
 
 Get the matching files from the
-[v0.1.1 release](https://github.com/precox/SolarTT-UI/releases/tag/v0.1.1):
+[v0.1.2 release](https://github.com/precox/SolarTT-UI/releases/tag/v0.1.2):
 
 | Target | File | Use |
 | --- | --- | --- |
-| Ubuntu 24.04, x86_64, systemd | `solartt-ui_0.1.1_amd64.deb` | Recommended installation; includes service account setup |
-| Linux x86_64 binary payload | `solartt-ui-0.1.1-linux-x86_64.tar.gz` | Manual deployment; does not set up service accounts |
-| Source code | `solartt-ui-0.1.1-source.tar.gz` | Building and inspecting the release |
+| Ubuntu 24.04, x86_64, systemd | `solartt-ui_0.1.2_amd64.deb` | Recommended installation; includes service account setup |
+| Linux x86_64 binary payload | `solartt-ui-0.1.2-linux-x86_64.tar.gz` | Manual deployment; does not set up service accounts |
+| Source code | `solartt-ui-0.1.2-source.tar.gz` | Building and inspecting the release |
 
 The Ubuntu package is the verified deployment target; the binary archive does
 not imply support for other distributions. Download `SHA256SUMS` alongside your
@@ -80,7 +79,7 @@ On the target server, use an empty directory for the downloaded `.deb` and
 ```sh
 sha256sum --ignore-missing -c SHA256SUMS
 sudo apt-get update
-sudo apt-get install ./solartt-ui_0.1.1_amd64.deb
+sudo apt-get install ./solartt-ui_0.1.2_amd64.deb
 ```
 
 Continue only if the package checksum passes. No Rust, compiler, Node or Chromium
@@ -133,6 +132,11 @@ A profile can be copied to another physical device. The server cannot distinguis
 those copies, so this limit controls issued profiles rather than enforcing a
 physical-device count. Likewise, **TLS connections** are transports, not devices;
 there is no fixed number of TLS connections per phone.
+
+**More user actions → Delete user** permanently removes the user, every device
+profile and traffic history after confirmation. All their connections close;
+other users keep their access. Audit records remain. Saved backups and client
+copies are outside this logical deletion.
 
 ## Connecting a device
 
@@ -224,14 +228,16 @@ be started manually. It separates these checks:
 | `portable` | Formatting, linting, policy/panel tests and release-tool checks |
 | `native` | Managed agent, browser, TLS/H2 TCP/UDP, proxy and package lifecycle |
 | `legacy` | Patched upstream regression tests |
-| `pilot` | Separate disposable Ubuntu VM legs for alpha.1 and published alpha.5/alpha.6/v0.1.0 upgrade/guarded recovery |
+| `pilot` | Separate disposable Ubuntu VM legs for alpha.1 and published alpha.5/alpha.6/v0.1.1 upgrade/guarded recovery |
 | `minimal` | Runtime package in minimal Ubuntu without build tools |
 
 Publication runs for alpha and stable tags after all six prerequisite job families
 pass, including all four upgrade matrix legs. Stable publication additionally
 requires the recorded owner decision and explicit verification limits. These
 checks are separate from real-client and sustained-load acceptance. The
-[v0.1.1 accepted scope](docs/stable-acceptance-2026-11-12.md) records Android
+[v0.1.2 accepted scope](docs/stable-acceptance-2026-11-13.md) records Chrome deletion
+acceptance, the independently reviewed quota correction and focused package QA.
+The historical [v0.1.1 accepted scope](docs/stable-acceptance-2026-11-12.md) records Android
 network switching, original TCP/UDP preservation during quota/revocation, local
 restore, staging ACME and the owner-accepted **20 h 39 min** observation. The
 [24-hour alpha.6 record](docs/stable-acceptance-2026-10-23.md) remains historical.

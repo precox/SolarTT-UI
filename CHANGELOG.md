@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.2 — 2026-11-13
+
+- Promote permanent user deletion from v0.1.2-alpha.1 after scoped Chrome acceptance.
+- Fix concurrent quota refills incorrectly rejecting a stream when another queued
+  refill has already provided available bytes. Recheck the shared pool and avoid
+  refill loops at the durable counter ceiling; preserve quota and write-failure
+  enforcement. Add deterministic TCP/UDP race and counter-boundary regressions.
+- Record a fresh 12-minute corrected-package observation with 140 health samples,
+  scoped lost-response deletion/replay and original B continuity; local guarded
+  rollback/restore passed. Historical diagnostic failures remain inconclusive.
+- Keep dependencies, schema, configuration defaults and the upstream patch unchanged.
+  Publish stable only after successful exact-tag CI and public-asset verification.
+
 ## 0.1.2-alpha.1 — 2026-11-13
 
 - Add permanent user deletion with a named confirmation, scoped TLS/TCP/UDP
