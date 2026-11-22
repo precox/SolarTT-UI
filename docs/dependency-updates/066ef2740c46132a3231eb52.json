@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "base": "11d247a66654cccfb31b50b9c7295966dc1fca2b",
+  "audit_database": "d1fe6ac3eba823a3515e849045f36dc34543885d",
+  "before_lock_sha256": "047fd28b7ae405a4e1e5981750c60db56208aa620b6171842c78bc54e8c88b73",
+  "findings": [
+    {
+      "package": "url",
+      "version": "2.5.8",
+      "advisory": "RUSTSEC-2026-0592",
+      "patched": [
+        ">=2.5.9"
+      ]
+    }
+  ],
+  "decision": "manual",
+  "reason": "dependency_features_or_msrv_changed",
+  "target": null,
+  "identity": "066ef2740c46132a3231eb52"
+}

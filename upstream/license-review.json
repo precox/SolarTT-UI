@@ -1,5 +1,5 @@
 {
-  "review_date": "2026-11-09",
+  "review_date": "2026-11-22",
   "scope": "Engineering redistribution review for first public alpha; entire resolved set, including build/test/other-platform dependencies.",
   "record": "docs/dependency-redistribution-review.md",
   "native_components": "Preserve all nested terms regardless of outer crate metadata; see record and NOTICE. No dependency relicensing.",
@@ -574,7 +574,7 @@
     },
     {
       "name": "form_urlencoded",
-      "version": "1.2.2",
+      "version": "1.2.3",
       "declared_license": "MIT OR Apache-2.0",
       "selected_license": "MIT",
       "notices_sha256": {
@@ -2456,7 +2456,7 @@
     },
     {
       "name": "url",
-      "version": "2.5.8",
+      "version": "2.5.9",
       "declared_license": "MIT OR Apache-2.0",
       "selected_license": "MIT",
       "notices_sha256": {
